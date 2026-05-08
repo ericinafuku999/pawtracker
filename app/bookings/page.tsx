@@ -4,12 +4,14 @@ import { createClient } from '@/lib/supabase'
 import { Booking } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import AppShell from '@/components/AppShell'
+import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [filters, setFilters] = useState({ status: '', payType: '', payStatus: '', customer: '' })
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
@@ -53,6 +55,17 @@ export default function BookingsPage() {
 
   const sf = (k: string) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => setFilters(f => ({ ...f, [k]: e.target.value }))
 
+  function sBadge(s: string) {
+    if (s === 'active') return <span className="badge badge-blue">active</span>
+    if (s === 'completed') return <span className="badge badge-green">done</span>
+    return <span className="badge badge-red">cancelled</span>
+  }
+  function pBadge(s: string) {
+    if (s === 'paid') return <span className="badge badge-green">paid</span>
+    if (s === 'partially paid') return <span className="badge badge-amber">partial</span>
+    return <span className="badge badge-gray">unpaid</span>
+  }
+
   return (
     <AppShell>
       <div className="flex justify-between items-start mb-5">
@@ -60,57 +73,68 @@ export default function BookingsPage() {
         <Link href="/bookings/new" className="btn btn-primary">+ New Booking</Link>
       </div>
 
-      <div className="flex gap-2 flex-wrap mb-4">
-        <select className="input w-auto text-xs" onChange={sf('status')}><option value="">All Statuses</option><option>active</option><option>completed</option><option>cancelled</option></select>
-        <select className="input w-auto text-xs" onChange={sf('payType')}><option value="">All Payment</option><option>Rover</option><option>Venmo</option></select>
-        <select className="input w-auto text-xs" onChange={sf('payStatus')}><option value="">All Pay Status</option><option>paid</option><option>partially paid</option><option>unpaid</option></select>
-        <input className="input w-40 text-xs" placeholder="Search customer…" onChange={sf('customer')} />
-        <button className="btn text-xs" onClick={exportCSV}>↓ Export CSV</button>
+      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
+        <button onClick={() => setView('calendar')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>📅 Calendar</button>
+        <button onClick={() => setView('list')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'list' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>☰ List</button>
       </div>
 
-      <div className="card p-0 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead><tr>
-              <th className="th">Customer</th><th className="th">Dogs</th><th className="th">Arrival</th>
-              <th className="th">Departure</th><th className="th">Dog-Days</th><th className="th">Rate</th>
-              <th className="th">Revenue</th><th className="th">Received</th><th className="th">Type</th>
-              <th className="th">Pay Status</th><th className="th">Status</th><th className="th"></th>
-            </tr></thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={12} className="td text-center text-gray-400 py-8">Loading…</td></tr>
-              ) : filtered.length === 0 ? (
-                <tr><td colSpan={12} className="td text-center text-gray-400 py-8">No bookings found</td></tr>
-              ) : filtered.map(b => (
-                <tr key={b.id} className="hover:bg-gray-50">
-                  <td className="td font-medium">{b.customer_name}</td>
-                  <td className="td text-gray-600">{b.dog_names} <span className="text-gray-400 text-xs">({b.number_of_dogs})</span></td>
-                  <td className="td whitespace-nowrap">{formatDate(b.arrival_date)}</td>
-                  <td className="td whitespace-nowrap">{formatDate(b.departure_date)}</td>
-                  <td className="td font-semibold">{b.dog_days}</td>
-                  <td className="td">${b.rate_per_dog_day}/day</td>
-                  <td className="td font-semibold">{formatCurrency(b.total_revenue)}</td>
-                  <td className={`td ${b.status !== 'cancelled' && b.amount_received < b.total_revenue ? 'text-red-500' : ''}`}>{formatCurrency(b.amount_received)}</td>
-                  <td className="td"><span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span></td>
-                  <td className="td"><span className={`badge ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span></td>
-                  <td className="td"><span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span></td>
-                  <td className="td">
-                    <div className="flex gap-1">
-                      <button className="btn text-xs py-1 px-2" onClick={() => router.push(`/bookings/${b.id}`)}>Edit</button>
-                      {b.status !== 'cancelled' && (
-                        <button className="btn btn-danger text-xs py-1 px-2" onClick={() => setCancelId(b.id)}>✕</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {view === 'calendar' ? (
+        <div className="card">
+          <BookingCalendar bookings={bookings} />
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="flex gap-2 flex-wrap mb-4">
+            <select className="input w-auto text-xs" onChange={sf('status')}><option value="">All Statuses</option><option>active</option><option>completed</option><option>cancelled</option></select>
+            <select className="input w-auto text-xs" onChange={sf('payType')}><option value="">All Payment</option><option>Rover</option><option>Venmo</option></select>
+            <select className="input w-auto text-xs" onChange={sf('payStatus')}><option value="">All Pay Status</option><option>paid</option><option>partially paid</option><option>unpaid</option></select>
+            <input className="input w-40 text-xs" placeholder="Search customer…" onChange={sf('customer')} />
+            <button className="btn text-xs" onClick={exportCSV}>↓ Export CSV</button>
+          </div>
+          <div className="card p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead><tr>
+                  <th className="th">Customer</th><th className="th">Dogs</th><th className="th">Arrival</th>
+                  <th className="th">Departure</th><th className="th">Dog-Days</th><th className="th">Rate</th>
+                  <th className="th">Revenue</th><th className="th">Received</th><th className="th">Type</th>
+                  <th className="th">Pay</th><th className="th">Status</th><th className="th"></th>
+                </tr></thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={12} className="td text-center text-gray-400 py-8">Loading…</td></tr>
+                  ) : filtered.length === 0 ? (
+                    <tr><td colSpan={12} className="td text-center text-gray-400 py-8">No bookings found</td></tr>
+                  ) : filtered.map(b => (
+                    <tr key={b.id} className="hover:bg-gray-50">
+                      <td className="td font-medium">{b.customer_name}</td>
+                      <td className="td text-gray-600">{b.dog_names} <span className="text-gray-400 text-xs">({b.number_of_dogs})</span></td>
+                      <td className="td whitespace-nowrap">{formatDate(b.arrival_date)}</td>
+                      <td className="td whitespace-nowrap">{formatDate(b.departure_date)}</td>
+                      <td className="td font-semibold">{b.dog_days}</td>
+                      <td className="td">${b.rate_per_dog_day}/day</td>
+                      <td className="td font-semibold">{formatCurrency(b.total_revenue)}</td>
+                      <td className={`td ${b.status !== 'cancelled' && b.amount_received < b.total_revenue ? 'text-red-500' : ''}`}>{formatCurrency(b.amount_received)}</td>
+                      <td className="td"><span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span></td>
+                      <td className="td">{pBadge(b.payment_status)}</td>
+                      <td className="td">{sBadge(b.status)}</td>
+                      <td className="td">
+                        <div className="flex gap-1">
+                          <button className="btn text-xs py-1 px-2" onClick={() => router.push(`/bookings/${b.id}`)}>Edit</button>
+                          {b.status !== 'cancelled' && (
+                            <button className="btn btn-danger text-xs py-1 px-2" onClick={() => setCancelId(b.id)}>✕</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
-      {/* Cancel modal */}
       {cancelId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="card w-96">

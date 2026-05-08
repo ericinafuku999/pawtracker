@@ -5,6 +5,7 @@ import { Booking, Expense } from '@/lib/types'
 import { formatCurrency, monthLabel } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import AppShell from '@/components/AppShell'
+import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
 
 type Period = 'month' | 'quarter' | 'year' | 'all'
@@ -145,6 +146,13 @@ export default function Dashboard() {
         </div>
       </div>
 
+      <div className="card mb-4">
+        <div className="flex justify-between items-center mb-1">
+          <div className="font-medium text-sm">Booking Calendar</div>
+          <a href="/bookings" className="text-xs text-emerald-600">View all →</a>
+        </div>
+        <BookingCalendar bookings={bookings} />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="card">
           <div className="flex justify-between items-center mb-3">
