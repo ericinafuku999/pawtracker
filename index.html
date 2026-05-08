@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PawTracker — Dog Care Business</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --surface2: #f2f1ee;
+  --border: rgba(0,0,0,0.1);
+  --border2: rgba(0,0,0,0.18);
+  --text: #1a1a18;
+  --text2: #6b6b67;
+  --text3: #9b9b96;
+  --accent: #2d6a4f;
+  --accent-bg: #e8f5ee;
+  --accent-text: #1b4332;
+  --danger: #c0392b;
+  --danger-bg: #fdf0ee;
+  --danger-text: #7b1d14;
+  --warn-bg: #fef9ec;
+  --warn-text: #7a4f00;
+  --info-bg: #eaf2fd;
+  --info-text: #1a4a7a;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--bg); min-height: 100vh; }
+.app { display: flex; min-height: 100vh; }
+
+/* SIDEBAR */
+.sidebar { width: 224px; min-width: 224px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.logo { padding: 1.25rem 1.25rem 1rem; border-bottom: 1px solid var(--border); }
+.logo-mark { font-size: 22px; margin-bottom: 2px; }
+.logo-name { font-size: 16px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+.logo-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.nav-section { font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 1rem 1.25rem 0.3rem; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 1.25rem; cursor: pointer; font-size: 13px; color: var(--text2); border-left: 2px solid transparent; transition: all 0.12s; }
+.nav-item:hover { background: var(--surface2); color: var(--text); }
+.nav-item.active { background: var(--accent-bg); color: var(--accent-text); border-left-color: var(--accent); font-weight: 500; }
+.nav-item i { font-size: 16px; }
+.sidebar-footer { margin-top: auto; padding: 1rem 1.25rem; border-top: 1px solid var(--border); font-size: 11px; color: var(--text3); }
+
+/* MAIN */
+.main { flex: 1; min-width: 0; padding: 1.75rem 2rem; background: var(--bg); }
+.page { display: none; }
+.page.active { display: block; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+.page-header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.4px; }
+.page-header p { font-size: 13px; color: var(--text2); margin-top: 3px; }
+
+/* METRIC CARDS */
+.mcards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.mc { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.1rem; box-shadow: var(--shadow); }
+.mc .lbl { font-size: 11px; color: var(--text3); font-weight: 500; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.mc .val { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; line-height: 1.1; }
+.mc .sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+/* CARDS */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; margin-bottom: 1rem; box-shadow: var(--shadow); }
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: .875rem; letter-spacing: -0.2px; }
+
+/* TABLES */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; padding: 8px 10px; color: var(--text3); font-weight: 600; font-size: 10px; border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--surface2); }
+
+/* BADGES */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.b-green { background: #e8f5ee; color: #1b4332; }
+.b-amber { background: #fef9ec; color: #7a4f00; }
+.b-red { background: #fdf0ee; color: #7b1d14; }
+.b-blue { background: #eaf2fd; color: #1a4a7a; }
+.b-gray { background: #f2f1ee; color: #5a5a56; }
+.b-teal { background: #e0f5f1; color: #0d5247; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border2); background: var(--surface); color: var(--text); font-family: inherit; transition: all 0.1s; }
+.btn:hover { background: var(--surface2); }
+.btn:active { transform: scale(0.98); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #245c42; }
+.btn-danger { background: var(--danger-bg); color: var(--danger-text); border-color: rgba(192,57,43,0.2); }
+.btn-danger:hover { background: #f8e0dc; }
+.btn-sm { padding: 4px 9px; font-size: 12px; }
+
+/* FILTERS */
+.filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: .875rem; align-items: center; }
+.filters select, .filters input[type=text] { font-size: 12px; padding: 6px 9px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: inherit; }
+.filters select:focus, .filters input:focus { outline: none; border-color: var(--accent); }
+
+/* FORM */
+.fld { margin-bottom: .875rem; }
+.fld label { display: block; font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 4px; }
+.fld input, .fld select, .fld textarea { width: 100%; font-size: 13px; padding: 8px 10px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); font-family: inherit; transition: border-color 0.1s; }
+.fld input:focus, .fld select:focus, .fld textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(45,106,79,0.1); }
+.fld textarea { resize: vertical; min-height: 60px; }
+.fr2 { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.fr3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .75rem; }
+.fa { display: flex; gap: 8px; margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+
+/* CALC BOX */
+.calc-box { background: var(--accent-bg); border: 1px solid rgba(45,106,79,0.2); border-radius: var(--radius); padding: .875rem; margin-bottom: .875rem; }
+.calc-row { display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 13px; margin-bottom: 4px; }
+.calc-split { font-size: 11px; color: var(--accent-text); margin-top: 4px; }
+
+/* TABS */
+.tabs { display: flex; gap: 2px; background: var(--surface2); border-radius: var(--radius); padding: 3px; width: fit-content; margin-bottom: .875rem; }
+.tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; color: var(--text2); font-weight: 500; }
+.tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.stabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: .875rem; gap: 0; }
+.stab { padding: 8px 14px; font-size: 13px; cursor: pointer; color: var(--text2); border-bottom: 2px solid transparent; margin-bottom: -1px; font-weight: 500; }
+.stab:hover { color: var(--text); }
+.stab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* GRID */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+.cw { position: relative; width: 100%; height: 200px; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: none; align-items: center; justify-content: center; z-index: 100; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: var(--radius-xl); padding: 1.5rem; width: 440px; max-width: 95vw; max-height: 85vh; overflow-y: auto; box-shadow: var(--shadow-md); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.1rem; }
+.modal-header h2 { font-size: 16px; font-weight: 600; }
+
+/* TOAST */
+.toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--text); color: #fff; border-radius: var(--radius); padding: 10px 16px; font-size: 13px; z-index: 200; opacity: 0; transition: opacity 0.2s; pointer-events: none; box-shadow: var(--shadow-md); }
+.toast.show { opacity: 1; }
+
+/* IMPORT */
+.imp-drop { border: 2px dashed var(--border2); border-radius: var(--radius-lg); padding: 2rem; text-align: center; cursor: pointer; color: var(--text2); transition: all 0.15s; }
+.imp-drop:hover { border-color: var(--accent); background: var(--accent-bg); }
+
+/* ACTIONS */
+.actions { display: flex; gap: 4px; }
+
+/* CHART LEGEND */
+.chart-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+.chart-legend span { display: flex; align-items: center; gap: 5px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main { padding: 1rem; }
+  .g2 { grid-template-columns: 1fr; }
+  .fr2, .fr3 { grid-template-columns: 1fr; }
+  .mcards { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-mark">🐾</div>
+      <div class="logo-name">PawTracker</div>
+      <div class="logo-sub">Dog Care Business</div>
+    </div>
+    <span class="nav-section">Overview</span>
+    <div class="nav-item active" onclick="nav('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+    <div class="nav-item" onclick="nav('reports')"><i class="ti ti-chart-bar"></i>Reports</div>
+    <span class="nav-section">Bookings</span>
+    <div class="nav-item" onclick="nav('bookings')"><i class="ti ti-calendar"></i>All Bookings</div>
+    <div class="nav-item" onclick="nav('add-booking');initBForm()"><i class="ti ti-plus"></i>Add Booking</div>
+    <span class="nav-section">Expenses</span>
+    <div class="nav-item" onclick="nav('expenses')"><i class="ti ti-receipt"></i>All Expenses</div>
+    <div class="nav-item" onclick="nav('add-expense');initEForm()"><i class="ti ti-plus"></i>Add Expense</div>
+    <span class="nav-section">Tools</span>
+    <div class="nav-item" onclick="nav('import')"><i class="ti ti-upload"></i>Import CSV</div>
+    <div class="nav-item" onclick="nav('settings')"><i class="ti ti-settings"></i>Settings</div>
+    <div class="sidebar-footer">Data saved in your browser</div>
+  </aside>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div><h1>Business Dashboard</h1><p>Cash flow and performance overview</p></div>
+      </div>
+      <div class="tabs">
+        <div class="tab active" onclick="dTab(this,'month')">This Month</div>
+        <div class="tab" onclick="dTab(this,'quarter')">Quarter</div>
+        <div class="tab" onclick="dTab(this,'year')">Year</div>
+        <div class="tab" onclick="dTab(this,'all')">All Time</div>
+      </div>
+      <div id="d-cards" class="mcards"></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">Revenue by Month</div>
+          <div class="chart-legend"><span><span class="legend-dot" style="background:#2d6a4f"></span>Rover</span><span><span class="legend-dot" style="background:#e9a020"></span>Venmo</span></div>
+          <div class="cw"><canvas id="cRev" role="img" aria-label="Monthly revenue by type">Monthly revenue chart</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Rover vs Venmo</div>
+          <div class="cw"><canvas id="cPay" role="img" aria-label="Revenue split by payment type">Payment type donut chart</canvas></div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card"><div class="card-title">Recent Bookings</div><div id="d-recent"></div></div>
+        <div class="card"><div class="card-title">Expenses by Category</div><div class="cw" style="height:180px"><canvas id="cExp" role="img" aria-label="Expenses by category">Expense chart</canvas></div></div>
+      </div>
+    </div>
+
+    <!-- BOOKINGS -->
+    <div id="page-bookings" class="page">
+      <div class="page-header">
+        <div><h1>Bookings</h1><p>All dog care appointments</p></div>
+        <button class="btn btn-primary" onclick="nav('add-booking');initBForm()"><i class="ti ti-plus"></i>New Booking</button>
+      </div>
+      <div class="filters">
+        <select id="fs" onchange="rBks()"><option value="">All Statuses</option><option>active</option><option>completed</option><option>cancelled</option></select>
+        <select id="fp" onchange="rBks()"><option value="">All Payment</option><option>Rover</option><option>Venmo</option></select>
+        <select id="fps" onchange="rBks()"><option value="">All Pay Status</option><option>paid</option><option>partially paid</option><option>unpaid</option></select>
+        <input type="text" id="fc" placeholder="Search customer..." oninput="rBks()" style="width:160px">
+        <button class="btn" onclick="exportBCSV()"><i class="ti ti-download"></i>Export CSV</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Customer</th><th>Dogs</th><th>Arrival</th><th>Departure</th><th>Dog-Days</th><th>Rate</th><th>Revenue</th><th>Received</th><th>Type</th><th>Pay Status</th><th>Status</th><th></th></tr></thead>
+            <tbody id="bTb"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD/EDIT BOOKING -->
+    <div id="page-add-booking" class="page">
+      <div class="page-header"><div><h1 id="bft">New Booking</h1><p>Schedule a dog care appointment</p></div></div>
+      <div class="card" style="max-width:640px">
+        <div class="fr2 fld">
+          <div class="fld"><label>Customer Name *</label><input id="b-cust" placeholder="e.g. Smith"></div>
+          <div class="fld"><label>Dog Name(s)</label><input id="b-dogs" placeholder="e.g. Max, Bella"></div>
+        </div>
+        <div class="fr3 fld">
+          <div class="fld"><label>Number of Dogs *</label><input id="b-n" type="number" min="1" value="1" oninput="calcB()"></div>
+          <div class="fld"><label>Rate per Dog-Day ($) *</label><input id="b-rate" type="number" value="50" oninput="calcB()"></div>
+          <div class="fld"><label>Override Dog-Days</label><input id="b-ov" type="number" placeholder="Auto-calculated" oninput="calcB()"></div>
+        </div>
+        <div class="fr2 fld">
+          <div class="fld"><label>Arrival Date *</label><input id="b-arr" type="date" oninput="calcB()"></div>
+          <div class="fld"><label>Departure Date *</label><input id="b-dep" type="date" oninput="calcB()"></div>
+        </div>
+        <div id="calc-box" class="calc-box" style="display:none">
+          <div class="calc-row">
+            <span>Days: <strong id="c-days">0</strong></span>
+            <span>Dog-Days: <strong id="c-dd">0</strong></span>
+            <span>Revenue: <strong id="c-rev">$0</strong></span>
+          </div>
+          <div class="calc-split" id="c-split"></div>
+        </div>
+        <div class="fr3 fld">
+          <div class="fld"><label>Payment Type</label><select id="b-pt"><option>Rover</option><option>Venmo</option></select></div>
+          <div class="fld"><label>Payment Status</label><select id="b-ps"><option>unpaid</option><option>partially paid</option><option>paid</option></select></div>
+          <div class="fld"><label>Amount Received ($)</label><input id="b-rec" type="number" value="0"></div>
+        </div>
+        <div class="fr2 fld">
+          <div class="fld"><label>Booking Status</label><select id="b-st"><option>active</option><option>completed</option><option>cancelled</option></select></div>
+          <div class="fld"><label>Cancellation Reason</label><input id="b-cr" placeholder="Optional"></div>
+        </div>
+        <div class="fld"><label>Notes</label><textarea id="b-notes" placeholder="Any special notes..."></textarea></div>
+        <div class="fa">
+          <button class="btn btn-primary" onclick="saveB()"><i class="ti ti-check"></i>Save Booking</button>
+          <button class="btn" onclick="nav('bookings')">Cancel</button>
+          <button class="btn btn-danger" id="btn-del-b" style="display:none;margin-left:auto" onclick="delB()"><i class="ti ti-trash"></i>Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EXPENSES -->
+    <div id="page-expenses" class="page">
+      <div class="page-header">
+        <div><h1>Expenses</h1><p>Operational costs for tax purposes</p></div>
+        <button class="btn btn-primary" onclick="nav('add-expense');initEForm()"><i class="ti ti-plus"></i>New Expense</button>
+      </div>
+      <div id="e-cards" class="mcards"></div>
+      <div class="filters">
+        <select id="ec" onchange="rExp()"><option value="">All Categories</option></select>
+        <select id="em" onchange="rExp()"><option value="">All Months</option></select>
+        <select id="et" onchange="rExp()"><option value="">All</option><option value="yes">Tax Deductible</option><option value="no">Not Deductible</option></select>
+        <button class="btn" onclick="exportECSV()"><i class="ti ti-download"></i>Export CSV</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Vendor</th><th>Category</th><th>Amount</th><th>Biz %</th><th>Deductible</th><th>Payment</th><th>Tax</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="eTb"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADD/EDIT EXPENSE -->
+    <div id="page-add-expense" class="page">
+      <div class="page-header"><div><h1 id="eft">New Expense</h1><p>Log an operational cost</p></div></div>
+      <div class="card" style="max-width:520px">
+        <div class="fr2 fld">
+          <div class="fld"><label>Date *</label><input id="e-dt" type="date"></div>
+          <div class="fld"><label>Vendor / Store *</label><input id="e-v" placeholder="e.g. PetSmart"></div>
+        </div>
+        <div class="fr2 fld">
+          <div class="fld"><label>Amount ($) *</label><input id="e-amt" type="number" min="0" step="0.01"></div>
+          <div class="fld"><label>Category *</label>
+            <select id="e-cat">
+              <option>Treats</option><option>Dog food</option><option>Diapers</option><option>Toys</option>
+              <option>Cleaning materials</option><option>Poop bags</option><option>Leashes/collars</option>
+              <option>Crates/gates/beds</option><option>Repairs/maintenance</option><option>Insurance</option>
+              <option>Marketing</option><option>Software/subscriptions</option><option>Mileage/vehicle</option>
+              <option>Bank/payment fees</option><option>Professional services</option><option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="fr3 fld">
+          <div class="fld"><label>Payment Method</label><input id="e-pay" placeholder="e.g. Visa, Cash"></div>
+          <div class="fld"><label>Business Use %</label><input id="e-bp" type="number" min="0" max="100" value="100"></div>
+          <div class="fld"><label>Tax Deductible</label><select id="e-tax"><option value="yes">Yes</option><option value="no">No</option></select></div>
+        </div>
+        <div class="fld"><label>Notes</label><input id="e-notes" placeholder="Optional notes"></div>
+        <div class="fa">
+          <button class="btn btn-primary" onclick="saveE()"><i class="ti ti-check"></i>Save Expense</button>
+          <button class="btn" onclick="nav('expenses')">Cancel</button>
+          <button class="btn btn-danger" id="btn-del-e" style="display:none;margin-left:auto" onclick="delE()"><i class="ti ti-trash"></i>Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div id="page-reports" class="page">
+      <div class="page-header"><div><h1>Reports</h1><p>Revenue, expenses, and summaries</p></div></div>
+      <div class="stabs">
+        <div class="stab active" onclick="rTab(this,'rev')">Revenue by Month</div>
+        <div class="stab" onclick="rTab(this,'pay')">Payment Types</div>
+        <div class="stab" onclick="rTab(this,'exp')">Expenses</div>
+        <div class="stab" onclick="rTab(this,'net')">Net Income</div>
+        <div class="stab" onclick="rTab(this,'cust')">Customers</div>
+        <div class="stab" onclick="rTab(this,'cancel')">Cancellations</div>
+      </div>
+      <div id="rpt"></div>
+    </div>
+
+    <!-- IMPORT -->
+    <div id="page-import" class="page">
+      <div class="page-header"><div><h1>Import CSV</h1><p>Upload your existing booking spreadsheet</p></div></div>
+      <div class="card" style="max-width:600px">
+        <div class="imp-drop" onclick="document.getElementById('csvf').click()">
+          <i class="ti ti-upload" style="font-size:36px;display:block;margin-bottom:10px;color:var(--accent)"></i>
+          <div style="font-weight:600;font-size:15px">Click to upload CSV file</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:6px">Supports columns: Customer, Arrival Date, Departure Date, Dogs, Payment Type, Rate</div>
+        </div>
+        <input type="file" id="csvf" accept=".csv" style="display:none" onchange="handleCSV(this)">
+        <div id="imp-prev" style="margin-top:1rem"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div id="page-settings" class="page">
+      <div class="page-header"><div><h1>Settings</h1></div></div>
+      <div class="card" style="max-width:480px">
+        <div class="card-title">Business Info</div>
+        <div class="fld"><label>Business Name</label><input id="s-bizname" placeholder="Your Dog Care Business"></div>
+        <div class="fld"><label>Default Rate per Dog-Day ($)</label><input id="s-rate" type="number" value="50"></div>
+        <div class="fld"><label>Tax Year</label><input id="s-year" type="number" value="2025"></div>
+        <div class="fa"><button class="btn btn-primary" onclick="saveSettings()"><i class="ti ti-check"></i>Save Settings</button></div>
+      </div>
+      <div class="card" style="max-width:480px">
+        <div class="card-title">Data Management</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:.875rem">Your data is saved in your browser's local storage and persists between sessions.</p>
+        <div style="display:flex;gap:8px">
+          <button class="btn" onclick="exportAll()"><i class="ti ti-download"></i>Backup All Data</button>
+          <button class="btn btn-danger" onclick="if(confirm('Clear ALL data? This cannot be undone.'))clearAll()"><i class="ti ti-trash"></i>Clear All Data</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal-overlay" id="cancel-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Cancel Booking</h2>
+      <button class="btn btn-sm" onclick="closeM('cancel-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="fld"><label>Cancellation reason (optional)</label><textarea id="cr-inp" placeholder="e.g. Customer rescheduled, dog got sick..."></textarea></div>
+    <div style="display:flex;gap:8px;margin-top:.875rem">
+      <button class="btn btn-danger" onclick="doCancel()"><i class="ti ti-x"></i>Cancel This Booking</button>
+      <button class="btn" onclick="closeM('cancel-modal')">Keep Active</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="tst"></div>
+
+<script>
+// ─── STATE ───────────────────────────────────────────────────
+var DB = { bookings: [], expenses: [], settings: { bizName: '', defaultRate: 50, taxYear: 2025 } };
+var editBId = null, editEId = null, cancelId = null, dPer = 'month';
+var cRev = null, cPay = null, cExp = null;
+
+function loadDB() {
+  try {
+    var b = localStorage.getItem('pt_bk'), e = localStorage.getItem('pt_ex'), s = localStorage.getItem('pt_st');
+    if (b) DB.bookings = JSON.parse(b);
+    if (e) DB.expenses = JSON.parse(e);
+    if (s) DB.settings = JSON.parse(s);
+  } catch(err) {}
+}
+function saveDB() {
+  try {
+    localStorage.setItem('pt_bk', JSON.stringify(DB.bookings));
+    localStorage.setItem('pt_ex', JSON.stringify(DB.expenses));
+    localStorage.setItem('pt_st', JSON.stringify(DB.settings));
+  } catch(err) {}
+}
+function uid() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 5); }
+function toast(m) {
+  var t = document.getElementById('tst');
+  t.textContent = m; t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2400);
+}
+
+// ─── NAVIGATION ──────────────────────────────────────────────
+function nav(p) {
+  document.querySelectorAll('.page').forEach(function(x) { x.classList.remove('active'); });
+  document.querySelectorAll('.nav-item').forEach(function(x) { x.classList.remove('active'); });
+  document.getElementById('page-' + p).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(function(n) {
+    var oc = n.getAttribute('onclick') || '';
+    if (oc.indexOf("'" + p + "'") > -1) n.classList.add('active');
+  });
+  if (p === 'dashboard') renderDash();
+  if (p === 'bookings') rBks();
+  if (p === 'expenses') { rExpCards(); rExp(); }
+  if (p === 'reports') renderReport('rev');
+  if (p === 'settings') loadSettings();
+}
+
+// ─── DATE UTILS ──────────────────────────────────────────────
+function parseD(s) { var p = s.split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+function fmtD(s) {
+  if (!s) return '';
+  var d = parseD(s);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+}
+function mKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+
+function calcDD(arr, dep, n) {
+  var a = parseD(arr), d = parseD(dep);
+  var days = Math.max(0, Math.round((d - a) / 86400000));
+  return { days: days, dd: days * n };
+}
+
+function splitMonths(arr, dep, n, rate, ov) {
+  var a = parseD(arr), d = parseD(dep);
+  var totalDays = Math.max(0, Math.round((d - a) / 86400000));
+  var totalDD = ov || (totalDays * n);
+  if (totalDays === 0) return [];
+  var s = {}, cur = new Date(a);
+  while (cur < d) {
+    var k = mKey(cur.getFullYear(), cur.getMonth());
+    s[k] = (s[k] || 0) + 1;
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return Object.entries(s).map(function(e) {
+    var dd = Math.round((e[1] / totalDays) * totalDD);
+    return { mk: e[0], days: e[1], dd: dd, rev: dd * rate };
+  });
+}
+
+// ─── DASHBOARD ───────────────────────────────────────────────
+function dTab(el, p) {
+  document.querySelectorAll('.tabs .tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active'); dPer = p; renderDash();
+}
+
+function getPeriodBks(bks) {
+  var now = new Date();
+  return bks.filter(function(b) {
+    if (b.status === 'cancelled') return false;
+    var a = parseD(b.arr);
+    if (dPer === 'month') return a.getMonth() === now.getMonth() && a.getFullYear() === now.getFullYear();
+    if (dPer === 'quarter') return Math.floor(a.getMonth()/3) === Math.floor(now.getMonth()/3) && a.getFullYear() === now.getFullYear();
+    if (dPer === 'year') return a.getFullYear() === now.getFullYear();
+    return true;
+  });
+}
+
+function getMonthRev() {
+  var m = {};
+  DB.bookings.filter(function(b) { return b.status !== 'cancelled'; }).forEach(function(b) {
+    (b.ma && b.ma.length ? b.ma : [{ mk: b.arr.substr(0,7), dd: b.dd, rev: b.rev }]).forEach(function(a) {
+      if (!m[a.mk]) m[a.mk] = { rover: 0, venmo: 0, dd: 0 };
+      if (b.pt === 'Rover') m[a.mk].rover += a.rev; else m[a.mk].venmo += a.rev;
+      m[a.mk].dd += a.dd;
+    });
+  });
+  return m;
+}
+
+function renderDash() {
+  var bks = getPeriodBks(DB.bookings);
+  var rover = bks.filter(function(b) { return b.pt === 'Rover'; }).reduce(function(s,b) { return s+b.rev; }, 0);
+  var venmo = bks.filter(function(b) { return b.pt === 'Venmo'; }).reduce(function(s,b) { return s+b.rev; }, 0);
+  var rec = bks.reduce(function(s,b) { return s+(b.rec||0); }, 0);
+  var outstanding = DB.bookings.filter(function(b) { return b.status !== 'cancelled'; }).reduce(function(s,b) { return s+b.rev-(b.rec||0); }, 0);
+  var canc = DB.bookings.filter(function(b) { return b.status === 'cancelled'; });
+  var dd = bks.reduce(function(s,b) { return s+b.dd; }, 0);
+  var totExp = DB.expenses.reduce(function(s,e) { return s+e.amt; }, 0);
+  var net = rec - totExp;
+  var lostRev = canc.reduce(function(s,b) { return s+b.rev; }, 0);
+  document.getElementById('d-cards').innerHTML =
+    '<div class="mc"><div class="lbl">Total Revenue</div><div class="val">$'+(rover+venmo).toFixed(0)+'</div><div class="sub">Rover $'+rover.toFixed(0)+' · Venmo $'+venmo.toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Received</div><div class="val">$'+rec.toFixed(0)+'</div><div class="sub">'+bks.length+' bookings</div></div>' +
+    '<div class="mc"><div class="lbl">Outstanding</div><div class="val" style="color:var(--danger)">$'+Math.max(0,outstanding).toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Dog-Days</div><div class="val">'+dd+'</div><div class="sub">$'+(dd?((rover+venmo)/dd).toFixed(0):0)+'/day</div></div>' +
+    '<div class="mc"><div class="lbl">Total Expenses</div><div class="val">$'+totExp.toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Net Profit</div><div class="val" style="color:'+(net>=0?'#1b4332':'var(--danger)')+'">$'+net.toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Cancelled</div><div class="val">'+canc.length+'</div><div class="sub">$'+lostRev.toFixed(0)+' lost</div></div>' +
+    '<div class="mc"><div class="lbl">Margin</div><div class="val">'+(rover+venmo>0?((net/(rover+venmo))*100).toFixed(0):0)+'%</div></div>';
+
+  var recent = DB.bookings.slice().sort(function(a,b) { return b.ts > a.ts ? 1 : -1; }).slice(0, 5);
+  document.getElementById('d-recent').innerHTML = recent.length ?
+    '<table><thead><tr><th>Customer</th><th>Dates</th><th>Revenue</th><th>Status</th></tr></thead><tbody>' +
+    recent.map(function(b) { return '<tr><td style="font-weight:600">'+b.cust+'</td><td style="font-size:11px;color:var(--text3)">'+fmtD(b.arr)+' – '+fmtD(b.dep)+'</td><td>$'+b.rev.toFixed(0)+'</td><td>'+sBadge(b.status)+'</td></tr>'; }).join('') +
+    '</tbody></table>' : '<p style="color:var(--text3);font-size:13px">No bookings yet. <a onclick="nav(\'add-booking\');initBForm()" style="color:var(--accent);cursor:pointer">Add your first booking →</a></p>';
+
+  buildRevChart(); buildPayChart(bks); buildExpChart();
+}
+
+function buildRevChart() {
+  var m = getMonthRev(), keys = Object.keys(m).sort().slice(-8);
+  var labels = keys.map(function(k) { var p = k.split('-'); return new Date(+p[0],+p[1]-1).toLocaleString('en',{month:'short',year:'2-digit'}); });
+  if (cRev) cRev.destroy();
+  cRev = new Chart(document.getElementById('cRev'), {
+    type: 'bar',
+    data: { labels: labels, datasets: [
+      { label: 'Rover', data: keys.map(function(k) { return m[k].rover; }), backgroundColor: '#2d6a4f', borderRadius: 3, stack: 's' },
+      { label: 'Venmo', data: keys.map(function(k) { return m[k].venmo; }), backgroundColor: '#e9a020', borderRadius: 3, stack: 's' }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { stacked: true, ticks: { font: { size: 10 }, autoSkip: false } }, y: { stacked: true, ticks: { callback: function(v) { return '$'+v; }, font: { size: 10 } } } } }
+  });
+}
+
+function buildPayChart(bks) {
+  var r = bks.filter(function(b){return b.pt==='Rover';}).reduce(function(s,b){return s+b.rev;},0);
+  var v = bks.filter(function(b){return b.pt==='Venmo';}).reduce(function(s,b){return s+b.rev;},0);
+  if (cPay) cPay.destroy();
+  cPay = new Chart(document.getElementById('cPay'), {
+    type: 'doughnut',
+    data: { labels: ['Rover','Venmo'], datasets: [{ data: [r, v], backgroundColor: ['#2d6a4f','#e9a020'], borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 10, padding: 12 } } }, cutout: '62%' }
+  });
+}
+
+function buildExpChart() {
+  var cats = {};
+  DB.expenses.forEach(function(e) { cats[e.cat] = (cats[e.cat]||0) + e.amt; });
+  var top = Object.entries(cats).sort(function(a,b){return b[1]-a[1];}).slice(0,6);
+  if (!top.length) return;
+  var colors = ['#2d6a4f','#e9a020','#2563eb','#dc2626','#7c3aed','#888780'];
+  if (cExp) cExp.destroy();
+  cExp = new Chart(document.getElementById('cExp'), {
+    type: 'doughnut',
+    data: { labels: top.map(function(x){return x[0];}), datasets: [{ data: top.map(function(x){return x[1];}), backgroundColor: colors, borderWidth: 0 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { font: { size: 10 }, boxWidth: 8, padding: 8 } } }, cutout: '50%' }
+  });
+}
+
+// ─── BOOKINGS ────────────────────────────────────────────────
+function sBadge(s) {
+  if (s==='active') return '<span class="badge b-blue">active</span>';
+  if (s==='completed') return '<span class="badge b-green">completed</span>';
+  if (s==='cancelled') return '<span class="badge b-red">cancelled</span>';
+  return '<span class="badge b-gray">'+s+'</span>';
+}
+function pBadge(s) {
+  if (s==='paid') return '<span class="badge b-green">paid</span>';
+  if (s==='partially paid') return '<span class="badge b-amber">partial</span>';
+  return '<span class="badge b-gray">unpaid</span>';
+}
+function ptBadge(s) { return s==='Rover' ? '<span class="badge b-teal">Rover</span>' : '<span class="badge b-amber">Venmo</span>'; }
+
+function rBks() {
+  var bks = DB.bookings.slice();
+  var fs = document.getElementById('fs'), fp = document.getElementById('fp');
+  var fps = document.getElementById('fps'), fc = document.getElementById('fc');
+  if (fs && fs.value) bks = bks.filter(function(b){return b.status===fs.value;});
+  if (fp && fp.value) bks = bks.filter(function(b){return b.pt===fp.value;});
+  if (fps && fps.value) bks = bks.filter(function(b){return b.ps===fps.value;});
+  if (fc && fc.value) bks = bks.filter(function(b){return b.cust.toLowerCase().indexOf(fc.value.toLowerCase())>-1;});
+  bks.sort(function(a,b){return a.arr>b.arr?-1:1;});
+  var tb = document.getElementById('bTb');
+  if (!bks.length) { tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:2rem;color:var(--text3)">No bookings found</td></tr>'; return; }
+  tb.innerHTML = bks.map(function(b) {
+    var outstanding = b.status!=='cancelled' && (b.rec||0)<b.rev;
+    return '<tr><td style="font-weight:600">'+b.cust+'</td><td>'+b.dogs+' <span style="color:var(--text3)">('+b.n+')</span></td>' +
+      '<td>'+fmtD(b.arr)+'</td><td>'+fmtD(b.dep)+'</td><td style="font-weight:600">'+b.dd+'</td>' +
+      '<td>$'+b.rate+'</td><td style="font-weight:600">$'+b.rev.toFixed(0)+'</td>' +
+      '<td style="'+(outstanding?'color:var(--danger)':'')+'">$'+(b.rec||0).toFixed(0)+'</td>' +
+      '<td>'+ptBadge(b.pt)+'</td><td>'+pBadge(b.ps)+'</td><td>'+sBadge(b.status)+'</td>' +
+      '<td><div class="actions"><button class="btn btn-sm" onclick="editB(\''+b.id+'\')"><i class="ti ti-edit"></i></button>' +
+      (b.status!=='cancelled'?'<button class="btn btn-sm btn-danger" onclick="openM(\''+b.id+'\')"><i class="ti ti-x"></i></button>':'')+'</div></td></tr>';
+  }).join('');
+}
+
+function initBForm(id) {
+  editBId = id || null;
+  document.getElementById('bft').textContent = id ? 'Edit Booking' : 'New Booking';
+  document.getElementById('btn-del-b').style.display = id ? '' : 'none';
+  ['b-cust','b-dogs','b-ov','b-cr','b-notes'].forEach(function(f){document.getElementById(f).value='';});
+  document.getElementById('b-n').value = '1';
+  document.getElementById('b-rate').value = DB.settings.defaultRate || 50;
+  document.getElementById('b-ps').value = 'unpaid';
+  document.getElementById('b-st').value = 'active';
+  document.getElementById('b-rec').value = '0';
+  document.getElementById('b-arr').value = '';
+  document.getElementById('b-dep').value = '';
+  document.getElementById('calc-box').style.display = 'none';
+  if (id) {
+    var b = DB.bookings.find(function(x){return x.id===id;});
+    if (b) {
+      document.getElementById('b-cust').value = b.cust||'';
+      document.getElementById('b-dogs').value = b.dogs||'';
+      document.getElementById('b-n').value = b.n||1;
+      document.getElementById('b-rate').value = b.rate||50;
+      document.getElementById('b-arr').value = b.arr||'';
+      document.getElementById('b-dep').value = b.dep||'';
+      document.getElementById('b-ov').value = b.ov||'';
+      document.getElementById('b-pt').value = b.pt||'Rover';
+      document.getElementById('b-ps').value = b.ps||'unpaid';
+      document.getElementById('b-rec').value = b.rec||0;
+      document.getElementById('b-st').value = b.status||'active';
+      document.getElementById('b-cr').value = b.cr||'';
+      document.getElementById('b-notes').value = b.notes||'';
+      calcB();
+    }
+  }
+}
+
+function calcB() {
+  var a = document.getElementById('b-arr').value, dep = document.getElementById('b-dep').value;
+  var n = parseInt(document.getElementById('b-n').value)||1;
+  var rate = parseFloat(document.getElementById('b-rate').value)||0;
+  var ov = parseInt(document.getElementById('b-ov').value)||0;
+  if (!a || !dep) return;
+  var r = calcDD(a, dep, n); var dd = ov || r.dd;
+  document.getElementById('c-days').textContent = r.days;
+  document.getElementById('c-dd').textContent = dd;
+  document.getElementById('c-rev').textContent = '$'+(dd*rate).toFixed(0);
+  document.getElementById('calc-box').style.display = '';
+  var splits = splitMonths(a, dep, n, rate, ov||0);
+  if (splits.length > 1)
+    document.getElementById('c-split').textContent = 'Split: ' + splits.map(function(s){return s.mk+': '+s.dd+' dog-days = $'+s.rev;}).join(' | ');
+  else document.getElementById('c-split').textContent = '';
+}
+
+function saveB() {
+  var cust = (document.getElementById('b-cust').value||'').trim();
+  var arr = document.getElementById('b-arr').value, dep = document.getElementById('b-dep').value;
+  if (!cust || !arr || !dep) { toast('Please fill required fields'); return; }
+  var n = parseInt(document.getElementById('b-n').value)||1;
+  var rate = parseFloat(document.getElementById('b-rate').value)||0;
+  var ov = parseInt(document.getElementById('b-ov').value)||0;
+  var r = calcDD(arr, dep, n); var dd = ov || r.dd;
+  var bk = {
+    id: editBId||uid(), cust: cust, dogs: document.getElementById('b-dogs').value,
+    n: n, rate: rate, arr: arr, dep: dep, days: r.days, dd: dd, ov: ov||null, rev: dd*rate,
+    pt: document.getElementById('b-pt').value, ps: document.getElementById('b-ps').value,
+    rec: parseFloat(document.getElementById('b-rec').value)||0,
+    status: document.getElementById('b-st').value, cr: document.getElementById('b-cr').value,
+    notes: document.getElementById('b-notes').value,
+    ma: splitMonths(arr, dep, n, rate, ov||0), ts: Date.now()
+  };
+  if (editBId) { var idx = DB.bookings.findIndex(function(x){return x.id===editBId;}); if(idx>-1) DB.bookings[idx]=bk; }
+  else DB.bookings.push(bk);
+  saveDB(); toast(editBId ? 'Booking updated!' : 'Booking saved!'); editBId=null; nav('bookings');
+}
+
+function editB(id) { editBId=id; nav('add-booking'); setTimeout(function(){initBForm(id);},20); }
+function delB() { if(!confirm('Delete this booking?'))return; DB.bookings=DB.bookings.filter(function(x){return x.id!==editBId;}); saveDB(); toast('Deleted'); editBId=null; nav('bookings'); }
+function openM(id) { cancelId=id; document.getElementById('cr-inp').value=''; document.getElementById('cancel-modal').classList.add('open'); }
+function closeM(id) { document.getElementById(id||'cancel-modal').classList.remove('open'); }
+function doCancel() { var b=DB.bookings.find(function(x){return x.id===cancelId;}); if(b){b.status='cancelled';b.cr=document.getElementById('cr-inp').value;} saveDB(); closeM(); rBks(); toast('Booking cancelled'); }
+
+// ─── EXPENSES ────────────────────────────────────────────────
+function rExpCards() {
+  var now = new Date(), m = now.getMonth(), y = now.getFullYear();
+  var me = DB.expenses.filter(function(e){var d=parseD(e.dt);return d.getMonth()===m&&d.getFullYear()===y;});
+  var tot = DB.expenses.reduce(function(s,e){return s+e.amt;},0);
+  var ded = DB.expenses.filter(function(e){return e.tax==='yes';}).reduce(function(s,e){return s+e.ded;},0);
+  var rec = DB.bookings.filter(function(b){return b.status!=='cancelled';}).reduce(function(s,b){return s+(b.rec||0);},0);
+  document.getElementById('e-cards').innerHTML =
+    '<div class="mc"><div class="lbl">This Month</div><div class="val">$'+me.reduce(function(s,e){return s+e.amt;},0).toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Total Expenses</div><div class="val">$'+tot.toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Tax Deductible</div><div class="val">$'+ded.toFixed(0)+'</div></div>' +
+    '<div class="mc"><div class="lbl">Net Income Est.</div><div class="val" style="color:'+(rec-tot>=0?'#1b4332':'var(--danger)')+'">$'+(rec-tot).toFixed(0)+'</div></div>';
+}
+
+function rExp() {
+  var ec = document.getElementById('ec'), em = document.getElementById('em'), et = document.getElementById('et');
+  var cats = Array.from(new Set(DB.expenses.map(function(e){return e.cat;}))).sort();
+  var mons = Array.from(new Set(DB.expenses.map(function(e){return e.dt.substr(0,7);}))).sort();
+  if (ec.options.length <= 1) cats.forEach(function(c){var o=document.createElement('option');o.value=c;o.textContent=c;ec.appendChild(o);});
+  if (em.options.length <= 1) mons.forEach(function(m){var o=document.createElement('option');o.value=m;o.textContent=m;em.appendChild(o);});
+  var exps = DB.expenses.slice().sort(function(a,b){return a.dt>b.dt?-1:1;});
+  if (ec.value) exps = exps.filter(function(e){return e.cat===ec.value;});
+  if (em.value) exps = exps.filter(function(e){return e.dt.startsWith(em.value);});
+  if (et.value) exps = exps.filter(function(e){return e.tax===et.value;});
+  var tb = document.getElementById('eTb');
+  if (!exps.length) { tb.innerHTML='<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text3)">No expenses found</td></tr>'; return; }
+  tb.innerHTML = exps.map(function(e) {
+    return '<tr><td>'+fmtD(e.dt)+'</td><td style="font-weight:600">'+e.v+'</td><td><span class="badge b-gray">'+e.cat+'</span></td>' +
+      '<td style="font-weight:600">$'+e.amt.toFixed(2)+'</td><td>'+e.bp+'%</td><td>$'+(e.ded||0).toFixed(2)+'</td>' +
+      '<td>'+(e.pay||'—')+'</td><td>'+(e.tax==='yes'?'<span class="badge b-green">yes</span>':'<span class="badge b-red">no</span>')+'</td>' +
+      '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)">'+(e.notes||'—')+'</td>' +
+      '<td><button class="btn btn-sm" onclick="editE(\''+e.id+'\')"><i class="ti ti-edit"></i></button></td></tr>';
+  }).join('');
+}
+
+function initEForm(id) {
+  editEId = id || null;
+  document.getElementById('eft').textContent = id ? 'Edit Expense' : 'New Expense';
+  document.getElementById('btn-del-e').style.display = id ? '' : 'none';
+  document.getElementById('e-dt').value = new Date().toISOString().split('T')[0];
+  ['e-v','e-pay','e-notes'].forEach(function(f){document.getElementById(f).value='';});
+  document.getElementById('e-amt').value = '';
+  document.getElementById('e-bp').value = '100';
+  document.getElementById('e-tax').value = 'yes';
+  document.getElementById('e-cat').value = 'Treats';
+  if (id) {
+    var e = DB.expenses.find(function(x){return x.id===id;});
+    if (e) {
+      document.getElementById('e-dt').value = e.dt;
+      document.getElementById('e-v').value = e.v;
+      document.getElementById('e-amt').value = e.amt;
+      document.getElementById('e-cat').value = e.cat;
+      document.getElementById('e-pay').value = e.pay||'';
+      document.getElementById('e-bp').value = e.bp||100;
+      document.getElementById('e-tax').value = e.tax;
+      document.getElementById('e-notes').value = e.notes||'';
+    }
+  }
+}
+
+function saveE() {
+  var dt = document.getElementById('e-dt').value, v = (document.getElementById('e-v').value||'').trim();
+  var amt = parseFloat(document.getElementById('e-amt').value);
+  if (!dt || !v || isNaN(amt)) { toast('Please fill required fields'); return; }
+  var bp = parseFloat(document.getElementById('e-bp').value)||100, tax = document.getElementById('e-tax').value;
+  var ex = {
+    id: editEId||uid(), dt: dt, v: v, amt: amt,
+    cat: document.getElementById('e-cat').value, pay: document.getElementById('e-pay').value,
+    bp: bp, tax: tax, ded: tax==='yes' ? amt*(bp/100) : 0,
+    notes: document.getElementById('e-notes').value, ts: Date.now()
+  };
+  if (editEId) { var idx=DB.expenses.findIndex(function(x){return x.id===editEId;}); if(idx>-1) DB.expenses[idx]=ex; }
+  else DB.expenses.push(ex);
+  saveDB(); toast(editEId?'Expense updated!':'Expense saved!'); editEId=null; nav('expenses');
+}
+
+function editE(id) { editEId=id; nav('add-expense'); setTimeout(function(){initEForm(id);},20); }
+function delE() { if(!confirm('Delete this expense?'))return; DB.expenses=DB.expenses.filter(function(x){return x.id!==editEId;}); saveDB(); toast('Deleted'); editEId=null; nav('expenses'); }
+
+// ─── REPORTS ─────────────────────────────────────────────────
+function rTab(el, tab) { document.querySelectorAll('.stab').forEach(function(t){t.classList.remove('active');}); el.classList.add('active'); renderReport(tab); }
+
+function renderReport(tab) {
+  var el = document.getElementById('rpt');
+  if (tab === 'rev') {
+    var m = {};
+    DB.bookings.forEach(function(b) {
+      (b.ma&&b.ma.length?b.ma:[{mk:b.arr.substr(0,7),dd:b.dd,rev:b.rev}]).forEach(function(a) {
+        if (!m[a.mk]) m[a.mk]={r:0,v:0,bks:0,dd:0,canc:0,unpaid:0};
+        if (b.status!=='cancelled') { if(b.pt==='Rover')m[a.mk].r+=a.rev; else m[a.mk].v+=a.rev; m[a.mk].bks++; m[a.mk].dd+=a.dd; m[a.mk].unpaid+=b.rev-(b.rec||0); }
+        else m[a.mk].canc++;
+      });
+    });
+    el.innerHTML = '<div style="display:flex;justify-content:flex-end;margin-bottom:.75rem"><button class="btn" onclick="exportRevCSV()"><i class="ti ti-download"></i>Export CSV</button></div>' +
+      '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rover</th><th>Venmo</th><th>Total</th><th>Bookings</th><th>Dog-Days</th><th>Cancelled</th><th>Unpaid</th></tr></thead><tbody>' +
+      Object.entries(m).sort(function(a,b){return a[0]>b[0]?1:-1;}).map(function(e) {
+        var k=e[0],v=e[1];
+        return '<tr><td style="font-weight:600">'+k+'</td><td>$'+v.r.toFixed(0)+'</td><td>$'+v.v.toFixed(0)+'</td><td style="font-weight:600">$'+(v.r+v.v).toFixed(0)+'</td><td>'+v.bks+'</td><td>'+v.dd+'</td><td>'+v.canc+'</td><td style="color:var(--danger)">$'+Math.max(0,v.unpaid).toFixed(0)+'</td></tr>';
+      }).join('') + '</tbody></table></div></div>';
+  } else if (tab === 'pay') {
+    var allR=0,allV=0;
+    DB.bookings.filter(function(b){return b.status!=='cancelled';}).forEach(function(b){if(b.pt==='Rover')allR+=b.rev; else allV+=b.rev;});
+    var mm={};
+    DB.bookings.filter(function(b){return b.status!=='cancelled';}).forEach(function(b){var k=b.arr.substr(0,7);if(!mm[k])mm[k]={r:0,v:0};if(b.pt==='Rover')mm[k].r+=b.rev; else mm[k].v+=b.rev;});
+    el.innerHTML = '<div class="mcards" style="margin-bottom:.875rem"><div class="mc"><div class="lbl">All-time Rover</div><div class="val">$'+allR.toFixed(0)+'</div></div><div class="mc"><div class="lbl">All-time Venmo</div><div class="val">$'+allV.toFixed(0)+'</div></div><div class="mc"><div class="lbl">Combined</div><div class="val">$'+(allR+allV).toFixed(0)+'</div></div></div>' +
+      '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Rover</th><th>Venmo</th><th>Total</th></tr></thead><tbody>' +
+      Object.entries(mm).sort(function(a,b){return a[0]>b[0]?1:-1;}).map(function(e){return'<tr><td>'+e[0]+'</td><td>$'+e[1].r.toFixed(0)+'</td><td>$'+e[1].v.toFixed(0)+'</td><td style="font-weight:600">$'+(e[1].r+e[1].v).toFixed(0)+'</td></tr>';}).join('')+
+      '</tbody></table></div></div>';
+  } else if (tab === 'exp') {
+    var cats={}, monthly={};
+    DB.expenses.forEach(function(e){cats[e.cat]=(cats[e.cat]||0)+e.amt; var mk=e.dt.substr(0,7); if(!monthly[mk])monthly[mk]={tot:0,ded:0}; monthly[mk].tot+=e.amt; monthly[mk].ded+=e.ded||0;});
+    el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.875rem">' +
+      '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Category</th><th>Amount</th></tr></thead><tbody>'+
+      Object.entries(cats).sort(function(a,b){return b[1]-a[1];}).map(function(e){return'<tr><td>'+e[0]+'</td><td style="font-weight:600">$'+e[1].toFixed(2)+'</td></tr>';}).join('')+
+      '</tbody></table></div></div>' +
+      '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Total</th><th>Deductible</th></tr></thead><tbody>'+
+      Object.entries(monthly).sort(function(a,b){return a[0]>b[0]?1:-1;}).map(function(e){return'<tr><td>'+e[0]+'</td><td>$'+e[1].tot.toFixed(2)+'</td><td style="color:#1b4332">$'+e[1].ded.toFixed(2)+'</td></tr>';}).join('')+
+      '</tbody></table></div></div></div>';
+  } else if (tab === 'net') {
+    var mm={};
+    DB.bookings.filter(function(b){return b.status!=='cancelled';}).forEach(function(b){(b.ma&&b.ma.length?b.ma:[{mk:b.arr.substr(0,7),rev:b.rev}]).forEach(function(a){if(!mm[a.mk])mm[a.mk]={rev:0,exp:0};mm[a.mk].rev+=a.rev;});});
+    DB.expenses.forEach(function(e){var mk=e.dt.substr(0,7);if(!mm[mk])mm[mk]={rev:0,exp:0};mm[mk].exp+=e.amt;});
+    el.innerHTML = '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Month</th><th>Revenue</th><th>Expenses</th><th>Net Income</th><th>Margin</th></tr></thead><tbody>'+
+      Object.entries(mm).sort(function(a,b){return a[0]>b[0]?1:-1;}).map(function(e){
+        var n=e[1].rev-e[1].exp, mg=e[1].rev>0?((n/e[1].rev)*100).toFixed(0):'0';
+        return'<tr><td style="font-weight:600">'+e[0]+'</td><td>$'+e[1].rev.toFixed(0)+'</td><td>$'+e[1].exp.toFixed(0)+'</td><td style="font-weight:600;color:'+(n>=0?'#1b4332':'var(--danger)')+'">$'+n.toFixed(0)+'</td><td>'+mg+'%</td></tr>';
+      }).join('')+'</tbody></table></div></div>';
+  } else if (tab === 'cust') {
+    var custs={};
+    DB.bookings.filter(function(b){return b.status!=='cancelled';}).forEach(function(b){if(!custs[b.cust])custs[b.cust]={bks:0,dd:0,rev:0,rec:0};custs[b.cust].bks++;custs[b.cust].dd+=b.dd;custs[b.cust].rev+=b.rev;custs[b.cust].rec+=b.rec||0;});
+    el.innerHTML = '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Bookings</th><th>Dog-Days</th><th>Revenue</th><th>Received</th><th>Outstanding</th></tr></thead><tbody>'+
+      Object.entries(custs).sort(function(a,b){return b[1].rev-a[1].rev;}).map(function(e){
+        var out=Math.max(0,e[1].rev-e[1].rec);
+        return'<tr><td style="font-weight:600">'+e[0]+'</td><td>'+e[1].bks+'</td><td>'+e[1].dd+'</td><td>$'+e[1].rev.toFixed(0)+'</td><td>$'+e[1].rec.toFixed(0)+'</td><td style="color:'+(out>0?'var(--danger)':'inherit')+'">$'+out.toFixed(0)+'</td></tr>';
+      }).join('')+'</tbody></table></div></div>';
+  } else if (tab === 'cancel') {
+    var canc = DB.bookings.filter(function(b){return b.status==='cancelled';});
+    var lost = canc.reduce(function(s,b){return s+b.rev;},0);
+    el.innerHTML = '<div class="mcards" style="margin-bottom:.875rem"><div class="mc"><div class="lbl">Cancelled Bookings</div><div class="val">'+canc.length+'</div></div><div class="mc"><div class="lbl">Lost Revenue</div><div class="val" style="color:var(--danger)">$'+lost.toFixed(0)+'</div></div></div>' +
+      '<div class="card" style="padding:0;overflow:hidden"><div class="table-wrap"><table><thead><tr><th>Customer</th><th>Arrival</th><th>Departure</th><th>Dog-Days</th><th>Lost Revenue</th><th>Reason</th></tr></thead><tbody>'+
+      canc.map(function(b){return'<tr><td style="font-weight:600">'+b.cust+'</td><td>'+fmtD(b.arr)+'</td><td>'+fmtD(b.dep)+'</td><td>'+b.dd+'</td><td style="color:var(--danger)">$'+b.rev.toFixed(0)+'</td><td style="color:var(--text2)">'+(b.cr||'—')+'</td></tr>';}).join('')+
+      '</tbody></table></div></div>';
+  }
+}
+
+// ─── EXPORT ──────────────────────────────────────────────────
+function dlCSV(content, filename) {
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type:'text/csv'}));
+  a.download = filename; a.click();
+}
+function exportBCSV() {
+  var rows = ['Customer,Dogs,NumDogs,Arrival,Departure,Days,DogDays,Rate,Revenue,PayType,PayStatus,Received,Status,CancelReason,Notes'];
+  DB.bookings.forEach(function(b){rows.push([b.cust,'"'+b.dogs+'"',b.n,b.arr,b.dep,b.days,b.dd,b.rate,b.rev,b.pt,b.ps,b.rec||0,b.status,b.cr||'','"'+(b.notes||'')+'"'].join(','));});
+  dlCSV(rows.join('\n'), 'pawtracker-bookings.csv');
+}
+function exportECSV() {
+  var rows = ['Date,Vendor,Category,Amount,BizPct,Deductible,Payment,TaxDeductible,Notes'];
+  DB.expenses.forEach(function(e){rows.push([e.dt,'"'+e.v+'"',e.cat,e.amt,e.bp,(e.ded||0).toFixed(2),e.pay||'',e.tax,'"'+(e.notes||'')+'"'].join(','));});
+  dlCSV(rows.join('\n'), 'pawtracker-expenses.csv');
+}
+function exportRevCSV() {
+  var m={};
+  DB.bookings.forEach(function(b){(b.ma&&b.ma.length?b.ma:[{mk:b.arr.substr(0,7),dd:b.dd,rev:b.rev}]).forEach(function(a){if(!m[a.mk])m[a.mk]={r:0,v:0,bks:0,dd:0,canc:0};if(b.status!=='cancelled'){if(b.pt==='Rover')m[a.mk].r+=a.rev;else m[a.mk].v+=a.rev;m[a.mk].bks++;m[a.mk].dd+=a.dd;}else m[a.mk].canc++;});});
+  var rows=['Month,Rover,Venmo,Total,Bookings,DogDays,Cancelled'];
+  Object.entries(m).sort(function(a,b){return a[0]>b[0]?1:-1;}).forEach(function(e){rows.push([e[0],e[1].r.toFixed(0),e[1].v.toFixed(0),(e[1].r+e[1].v).toFixed(0),e[1].bks,e[1].dd,e[1].canc].join(','));});
+  dlCSV(rows.join('\n'), 'pawtracker-revenue.csv');
+}
+function exportAll() {
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));
+  a.download='pawtracker-backup-'+new Date().toISOString().split('T')[0]+'.json';
+  a.click(); toast('Backup downloaded');
+}
+function clearAll() { DB={bookings:[],expenses:[],settings:{bizName:'',defaultRate:50,taxYear:2025}}; saveDB(); renderDash(); toast('All data cleared'); }
+
+// ─── IMPORT ──────────────────────────────────────────────────
+function handleCSV(inp) {
+  var f = inp.files[0]; if (!f) return;
+  var r = new FileReader();
+  r.onload = function(e) {
+    var lines = e.target.result.split('\n').filter(Boolean);
+    var hdrs = lines[0].split(',').map(function(h){return h.trim().replace(/"/g,'');});
+    var rows = lines.slice(1).map(function(l){
+      var vals=l.split(',').map(function(v){return v.trim().replace(/"/g,'');});
+      var o={};hdrs.forEach(function(h,i){o[h]=vals[i]||'';});return o;
+    });
+    var prev = document.getElementById('imp-prev');
+    prev.innerHTML = '<div style="background:var(--accent-bg);border:1px solid rgba(45,106,79,0.2);border-radius:var(--radius);padding:.875rem;margin-bottom:.875rem;font-size:13px"><strong>'+rows.length+' rows detected.</strong> Columns: '+hdrs.join(', ')+'</div>' +
+      '<div style="overflow-x:auto;max-height:220px;border:1px solid var(--border);border-radius:var(--radius)"><table><thead><tr>'+hdrs.map(function(h){return'<th>'+h+'</th>';}).join('')+'</tr></thead><tbody>'+
+      rows.slice(0,10).map(function(row){return'<tr>'+hdrs.map(function(h){return'<td style="font-size:11px">'+row[h]+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table></div>' +
+      '<div style="margin-top:.875rem;display:flex;gap:8px"><button class="btn btn-primary" id="do-imp"><i class="ti ti-upload"></i>Import '+rows.length+' Rows</button><button class="btn" onclick="document.getElementById(\'imp-prev\').innerHTML=\'\'">Clear</button></div>';
+    document.getElementById('do-imp').onclick = function() {
+      var imp=0,skip=0;
+      rows.forEach(function(r){
+        var arr=r['Arrival Date']||r['arrival']||r['Arrival']||'';
+        var dep=r['Departure Date']||r['departure']||r['Departure']||'';
+        if(!arr||!dep){skip++;return;}
+        var exists=DB.bookings.some(function(b){return b.arr===arr&&b.dep===dep&&b.cust===(r['Customer']||r['customer']||'');});
+        if(exists){skip++;return;}
+        var n=parseInt(r['Num Dogs']||r['num_dogs']||r['Dogs']||'1')||1;
+        var rate=parseFloat(r['Rate']||r['rate']||'50')||50;
+        var dd0=parseInt(r['Dog-Days']||r['dog_days']||'')||0;
+        var res=calcDD(arr,dep,n);var dd=dd0||res.dd;
+        DB.bookings.push({id:uid(),cust:r['Customer']||r['customer']||'Imported',dogs:r['Dogs']||r['dogs']||'',n:n,rate:rate,arr:arr,dep:dep,days:res.days,dd:dd,ov:dd0||null,rev:dd*rate,pt:r['Payment Type']||r['payment_type']||'Rover',ps:'unpaid',rec:0,status:'active',cr:'',notes:'Imported from CSV',ma:splitMonths(arr,dep,n,rate,0),ts:Date.now()});
+        imp++;
+      });
+      saveDB(); toast('Imported '+imp+' bookings, '+skip+' skipped');
+    };
+  };
+  r.readAsText(f);
+}
+
+// ─── SETTINGS ────────────────────────────────────────────────
+function loadSettings() {
+  var s = DB.settings;
+  document.getElementById('s-bizname').value = s.bizName||'';
+  document.getElementById('s-rate').value = s.defaultRate||50;
+  document.getElementById('s-year').value = s.taxYear||2025;
+}
+function saveSettings() {
+  DB.settings.bizName = document.getElementById('s-bizname').value;
+  DB.settings.defaultRate = parseFloat(document.getElementById('s-rate').value)||50;
+  DB.settings.taxYear = parseInt(document.getElementById('s-year').value)||2025;
+  saveDB(); toast('Settings saved!');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+loadDB();
+if (DB.bookings.length === 0) {
+  // Seed sample data
+  var seedBks=[
+    ['Johnson','Buddy, Max',2,'Rover','2025-01-05','2025-01-10',50,'completed','paid'],
+    ['Smith','Max, Bella',2,'Venmo','2025-01-30','2025-02-02',50,'completed','paid'],
+    ['Williams','Daisy',1,'Rover','2025-02-10','2025-02-14',50,'completed','unpaid'],
+    ['Garcia','Luna, Rocky, Coco',3,'Venmo','2025-03-01','2025-03-07',50,'completed','paid'],
+    ['Martinez','Bear, Molly',2,'Rover','2025-03-15','2025-03-18',50,'completed','paid'],
+    ['Brown','Charlie',1,'Venmo','2025-04-01','2025-04-05',50,'completed','paid'],
+    ['Wilson','Sadie, Lola',2,'Rover','2025-04-20','2025-04-25',50,'active','partially paid'],
+    ['Taylor','Bailey',1,'Venmo','2025-05-01','2025-05-03',50,'active','unpaid'],
+    ['Anderson','Rex',1,'Rover','2025-05-05','2025-05-08',50,'active','unpaid']
+  ];
+  seedBks.forEach(function(d){
+    var res=calcDD(d[4],d[5],d[2]);var dd=res.dd;var rev=dd*d[6];
+    var rec=d[8]==='paid'?rev:(d[8]==='partially paid'?rev*0.5:0);
+    DB.bookings.push({id:uid(),cust:d[0],dogs:d[1],n:d[2],rate:d[6],arr:d[4],dep:d[5],days:res.days,dd:dd,ov:null,rev:rev,pt:d[3],ps:d[8],rec:rec,status:d[7],cr:'',notes:'',ma:splitMonths(d[4],d[5],d[2],d[6],0),ts:Date.now()-(Math.random()*5000000)});
+  });
+  DB.bookings.push({id:uid(),cust:'Davis',dogs:'Max',n:1,rate:50,arr:'2025-03-20',dep:'2025-03-23',days:3,dd:3,ov:null,rev:150,pt:'Rover',ps:'unpaid',rec:0,status:'cancelled',cr:'Dog got sick',notes:'',ma:[],ts:Date.now()});
+  var seedExp=[
+    ['2025-01-10','PetSmart','Treats',45,'yes',100],['2025-01-15','Costco','Dog food',85,'yes',100],
+    ['2025-02-01','Amazon','Toys',32,'yes',100],['2025-02-15','Home Depot','Cleaning materials',28,'yes',80],
+    ['2025-03-01','PetSmart','Poop bags',18,'yes',100],['2025-03-10','State Farm','Insurance',120,'yes',100],
+    ['2025-04-01','Google','Marketing',50,'yes',100],['2025-04-20','Chase Bank','Bank/payment fees',15,'yes',100],
+    ['2025-05-02','PetSmart','Treats',38,'yes',100]
+  ];
+  seedExp.forEach(function(e){DB.expenses.push({id:uid(),dt:e[0],v:e[1],cat:e[2],amt:e[3],pay:'Credit Card',bp:e[5],tax:e[4],ded:e[3]*(e[5]/100),notes:'',ts:Date.now()});});
+  saveDB();
+}
+renderDash();
+</script>
+</body>
+</html>
