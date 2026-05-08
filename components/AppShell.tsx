@@ -6,29 +6,36 @@ import Sidebar from '@/components/Sidebar'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
+  const [authed, setAuthed] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        setLoading(false)
-      } else if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
-        if (pathname !== '/login') router.push('/login')
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setAuthed(true)
+      } else if (pathname !== '/login') {
+        router.replace('/login')
+      }
+      setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setAuthed(true)
         setLoading(false)
       } else {
+        setAuthed(false)
+        if (pathname !== '/login') router.replace('/login')
         setLoading(false)
       }
     })
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && pathname !== '/login') router.push('/login')
-      setLoading(false)
-    })
-
     return () => subscription.unsubscribe()
-  }, [pathname])
+  }, [])
+
+  if (pathname === '/login') return <>{children}</>
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
@@ -36,7 +43,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   )
 
-  if (pathname === '/login') return <>{children}</>
+  if (!authed) return null
 
   return (
     <div className="flex min-h-screen">
