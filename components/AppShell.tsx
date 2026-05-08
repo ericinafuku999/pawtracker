@@ -11,11 +11,24 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const supabase = createClient()
 
   useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setLoading(false)
+      } else if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
+        if (pathname !== '/login') router.push('/login')
+        setLoading(false)
+      } else {
+        setLoading(false)
+      }
+    })
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session && pathname !== '/login') router.push('/login')
       setLoading(false)
     })
-  }, [])
+
+    return () => subscription.unsubscribe()
+  }, [pathname])
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
