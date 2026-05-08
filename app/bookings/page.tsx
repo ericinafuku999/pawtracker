@@ -1,26 +1,22 @@
 'use client'
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Booking } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 
-export default function BookingsPage() {
+function BookingsContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'list' | 'calendar'>(() => {
-    if (typeof window !== 'undefined') return (localStorage.getItem('bookings_view') as 'list' | 'calendar') || 'calendar'
-    return 'calendar'
-  })
+  const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [filters, setFilters] = useState({ status: '', payType: '', payStatus: '', customer: '' })
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const supabase = createClient()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const tableRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
@@ -29,20 +25,17 @@ export default function BookingsPage() {
     const { data } = await supabase.from('bookings').select('*').eq('user_id', user.id).order('arrival_date', { ascending: false })
     setBookings(data || [])
     setLoading(false)
-    // Restore scroll position after load
     const scrollY = sessionStorage.getItem('bookings_scroll')
     if (scrollY) {
       setTimeout(() => { window.scrollTo(0, parseInt(scrollY)); sessionStorage.removeItem('bookings_scroll') }, 100)
     }
   }, [])
 
-  useEffect(() => { load() }, [load])
-
-  // Restore list view if coming back from edit
   useEffect(() => {
     const savedView = localStorage.getItem('bookings_view') as 'list' | 'calendar'
     if (savedView) setView(savedView)
-  }, [])
+    load()
+  }, [load])
 
   function switchView(v: 'list' | 'calendar') {
     setView(v)
@@ -180,5 +173,13 @@ export default function BookingsPage() {
         </div>
       )}
     </AppShell>
+  )
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">Loading…</div>}>
+      <BookingsContent />
+    </Suspense>
   )
 }
