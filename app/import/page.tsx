@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { calcDogDays, splitRevenueByMonth } from '@/lib/utils'
 import AppShell from '@/components/AppShell'
@@ -10,7 +10,14 @@ export default function ImportPage() {
   const [headers, setHeaders] = useState<string[]>([])
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState('')
+  const [userId, setUserId] = useState<string | null>(null)
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setUserId(session.user.id)
+    })
+  }, [])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -22,10 +29,9 @@ export default function ImportPage() {
   }
 
   async function doImport() {
+    if (!userId) { setResult('Error: not logged in'); return }
     setImporting(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data: existing } = await supabase.from('bookings').select('arrival_date,departure_date,customer_name').eq('user_id', user.id)
+    const { data: existing } = await supabase.from('bookings').select('arrival_date,departure_date,customer_name').eq('user_id', userId)
     let imported = 0, skipped = 0
     const toInsert = []
     for (const r of rows) {
@@ -35,23 +41,38 @@ export default function ImportPage() {
       if (!arr || !dep) { skipped++; continue }
       const dup = (existing || []).some((b: any) => b.arrival_date === arr && b.departure_date === dep && b.customer_name === cust)
       if (dup) { skipped++; continue }
-      const n = parseInt(r['Num Dogs'] || r['num_dogs'] || r['Number of Dogs'] || '1') || 1
+      const n = parseInt(r['Num Dogs'] || r['num_dogs'] || r['Number of Dogs'] || r['Dogs'] || '1') || 1
       const rate = parseFloat(r['Rate'] || r['rate'] || '50') || 50
       const ddOv = parseInt(r['Dog-Days'] || r['dog_days'] || '') || 0
       const { days, dogDays } = calcDogDays(arr, dep, n)
       const dd = ddOv || dogDays
       toInsert.push({
-        user_id: user.id, customer_name: cust, dog_names: r['Dogs'] || r['dogs'] || '',
-        number_of_dogs: n, arrival_date: arr, departure_date: dep, number_of_days: days,
-        dog_days: dd, dog_days_override: ddOv || null, rate_per_dog_day: rate,
-        total_revenue: dd * rate, payment_type: r['Payment Type'] || r['payment_type'] || 'Rover',
-        payment_status: 'unpaid', amount_received: 0, status: 'active',
+        user_id: userId,
+        customer_name: cust,
+        dog_names: r['Dogs'] || r['dogs'] || '',
+        number_of_dogs: n,
+        arrival_date: arr,
+        departure_date: dep,
+        number_of_days: days,
+        dog_days: dd,
+        dog_days_override: ddOv || null,
+        rate_per_dog_day: rate,
+        total_revenue: dd * rate,
+        payment_type: r['Payment Type'] || r['payment_type'] || 'Rover',
+        payment_status: 'unpaid',
+        amount_received: 0,
+        status: 'active',
         month_allocations: splitRevenueByMonth(arr, dep, n, rate, ddOv || undefined),
-        notes: 'Imported from CSV', created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+        notes: 'Imported from CSV',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       imported++
     }
-    if (toInsert.length) await supabase.from('bookings').insert(toInsert)
+    if (toInsert.length) {
+      const { error } = await supabase.from('bookings').insert(toInsert)
+      if (error) { setResult('Error: ' + error.message); setImporting(false); return }
+    }
     setImporting(false)
     setResult(`✓ Imported ${imported} bookings, skipped ${skipped} duplicates/invalid.`)
     setRows([]); setHeaders([])
@@ -61,6 +82,7 @@ export default function ImportPage() {
     <AppShell>
       <div className="mb-5"><h1 className="text-xl font-semibold">Import CSV</h1><p className="text-sm text-gray-500">Upload existing booking data from Excel or CSV</p></div>
       <div className="card max-w-2xl">
+        {!userId && <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4">Not logged in — please refresh the page</div>}
         <label className="block border-2 border-dashed border-gray-200 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors mb-4">
           <div className="text-3xl mb-2">↑</div>
           <div className="font-medium text-gray-700">Click to upload CSV file</div>
@@ -68,7 +90,7 @@ export default function ImportPage() {
           <input type="file" accept=".csv" className="hidden" onChange={handleFile} />
         </label>
 
-        {result && <div className="bg-emerald-50 text-emerald-700 text-sm rounded-lg p-3 mb-4">{result}</div>}
+        {result && <div className={`text-sm rounded-lg p-3 mb-4 ${result.startsWith('Error') ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>{result}</div>}
 
         {rows.length > 0 && (
           <div>
@@ -84,7 +106,7 @@ export default function ImportPage() {
               </table>
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-primary" onClick={doImport} disabled={importing}>{importing ? 'Importing…' : `Import ${rows.length} Rows`}</button>
+              <button className="btn btn-primary" onClick={doImport} disabled={importing || !userId}>{importing ? 'Importing…' : `Import ${rows.length} Rows`}</button>
               <button className="btn" onClick={() => { setRows([]); setHeaders([]) }}>Clear</button>
             </div>
           </div>
