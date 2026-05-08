@@ -1,22 +1,27 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Booking } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
-  const [view, setView] = useState<'list' | 'calendar'>('calendar')
+  const [view, setView] = useState<'list' | 'calendar'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('bookings_view') as 'list' | 'calendar') || 'calendar'
+    return 'calendar'
+  })
   const [filters, setFilters] = useState({ status: '', payType: '', payStatus: '', customer: '' })
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -24,9 +29,30 @@ export default function BookingsPage() {
     const { data } = await supabase.from('bookings').select('*').eq('user_id', user.id).order('arrival_date', { ascending: false })
     setBookings(data || [])
     setLoading(false)
+    // Restore scroll position after load
+    const scrollY = sessionStorage.getItem('bookings_scroll')
+    if (scrollY) {
+      setTimeout(() => { window.scrollTo(0, parseInt(scrollY)); sessionStorage.removeItem('bookings_scroll') }, 100)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Restore list view if coming back from edit
+  useEffect(() => {
+    const savedView = localStorage.getItem('bookings_view') as 'list' | 'calendar'
+    if (savedView) setView(savedView)
+  }, [])
+
+  function switchView(v: 'list' | 'calendar') {
+    setView(v)
+    localStorage.setItem('bookings_view', v)
+  }
+
+  function handleEdit(id: string) {
+    sessionStorage.setItem('bookings_scroll', String(window.scrollY))
+    router.push(`/bookings/${id}`)
+  }
 
   const filtered = bookings.filter(b => {
     if (filters.status && b.status !== filters.status) return false
@@ -74,13 +100,13 @@ export default function BookingsPage() {
       </div>
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
-        <button onClick={() => setView('calendar')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>📅 Calendar</button>
-        <button onClick={() => setView('list')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'list' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>☰ List</button>
+        <button onClick={() => switchView('calendar')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>📅 Calendar</button>
+        <button onClick={() => switchView('list')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'list' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>☰ List</button>
       </div>
 
       {view === 'calendar' ? (
         <div className="card">
-          <BookingCalendar bookings={bookings} />
+          <BookingCalendar bookings={bookings} onRefresh={load} />
         </div>
       ) : (
         <>
@@ -91,7 +117,7 @@ export default function BookingsPage() {
             <input className="input w-40 text-xs" placeholder="Search customer…" onChange={sf('customer')} />
             <button className="btn text-xs" onClick={exportCSV}>↓ Export CSV</button>
           </div>
-          <div className="card p-0 overflow-hidden">
+          <div className="card p-0 overflow-hidden" ref={tableRef}>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead><tr>
@@ -120,7 +146,7 @@ export default function BookingsPage() {
                       <td className="td">{sBadge(b.status)}</td>
                       <td className="td">
                         <div className="flex gap-1">
-                          <button className="btn text-xs py-1 px-2" onClick={() => router.push(`/bookings/${b.id}`)}>Edit</button>
+                          <button className="btn text-xs py-1 px-2" onClick={() => handleEdit(b.id)}>Edit</button>
                           {b.status !== 'cancelled' && (
                             <button className="btn btn-danger text-xs py-1 px-2" onClick={() => setCancelId(b.id)}>✕</button>
                           )}

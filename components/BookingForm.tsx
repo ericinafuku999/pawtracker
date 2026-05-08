@@ -53,6 +53,11 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
 
+  function goBack() {
+    localStorage.setItem('bookings_view', 'list')
+    router.push('/bookings')
+  }
+
   async function save() {
     if (!form.customer_name || !form.arrival_date || !form.departure_date) { alert('Fill required fields'); return }
     setSaving(true)
@@ -91,13 +96,13 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       await supabase.from('bookings').insert({ ...payload, created_at: new Date().toISOString() })
     }
     setSaving(false)
-    router.push('/bookings')
+    goBack()
   }
 
   async function deleteBooking() {
     if (!confirm('Delete this booking?')) return
     await supabase.from('bookings').delete().eq('id', bookingId)
-    router.push('/bookings')
+    goBack()
   }
 
   return (
@@ -162,7 +167,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
 
         <div className="flex gap-2">
           <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Booking'}</button>
-          <button className="btn" onClick={() => router.push('/bookings')}>Cancel</button>
+          <button className="btn" onClick={goBack}>Cancel</button>
           {isEdit && <button className="btn btn-danger ml-auto" onClick={deleteBooking}>Delete</button>}
         </div>
       </div>

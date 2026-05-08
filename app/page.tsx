@@ -8,17 +8,44 @@ import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
 
-type Period = 'month' | 'quarter' | 'year' | 'all'
+type Period = 'month' | 'quarter' | 'year' | 'all' | 'pick' | 'custom'
 
-function filterByPeriod(bookings: Booking[], period: Period) {
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function filterBookings(bookings: Booking[], period: Period, pickedMonth: string, customStart: string, customEnd: string) {
   const now = new Date()
+  const nowMonth = getMonthKey(now)
+  const nowQuarter = Math.floor(now.getMonth() / 3)
+  const nowYear = now.getFullYear()
+
   return bookings.filter(b => {
     if (b.status === 'cancelled') return false
-    const a = new Date(b.arrival_date)
-    if (period === 'month') return a.getMonth() === now.getMonth() && a.getFullYear() === now.getFullYear()
-    if (period === 'quarter') return Math.floor(a.getMonth() / 3) === Math.floor(now.getMonth() / 3) && a.getFullYear() === now.getFullYear()
-    if (period === 'year') return a.getFullYear() === now.getFullYear()
-    return true
+    if (period === 'all') return true
+
+    const allocs = (b.month_allocations || [{ monthKey: b.arrival_date.substr(0, 7) }]) as any[]
+
+    if (period === 'pick') {
+      return allocs.some((a: any) => a.monthKey === pickedMonth)
+    }
+
+    if (period === 'custom') {
+      if (!customStart || !customEnd) return false
+      const arr = new Date(b.arrival_date)
+      const dep = new Date(b.departure_date)
+      const start = new Date(customStart)
+      const end = new Date(customEnd)
+      return arr <= end && dep >= start
+    }
+
+    return allocs.some((a: any) => {
+      const [y, m] = a.monthKey.split('-').map(Number)
+      if (period === 'month') return a.monthKey === nowMonth
+      if (period === 'quarter') return Math.floor((m - 1) / 3) === nowQuarter && y === nowYear
+      if (period === 'year') return y === nowYear
+      return true
+    })
   })
 }
 
@@ -26,6 +53,9 @@ export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [period, setPeriod] = useState<Period>('month')
+  const [pickedMonth, setPickedMonth] = useState(getMonthKey(new Date()))
+  const [customStart, setCustomStart] = useState('')
+  const [customEnd, setCustomEnd] = useState('')
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -43,7 +73,7 @@ export default function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
-  const bks = filterByPeriod(bookings, period)
+  const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
   const rover = bks.filter(b => b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
   const venmo = bks.filter(b => b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const totalReceived = rover + venmo
@@ -55,10 +85,9 @@ export default function Dashboard() {
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const net = totalReceived - totalExp
 
-  // Monthly chart data using amount_received
   const monthMap: Record<string, { rover: number; venmo: number }> = {}
   bookings.filter(b => b.status !== 'cancelled' && b.amount_received > 0).forEach(b => {
-    const allocs = b.month_allocations || [{ monthKey: b.arrival_date.substr(0, 7), revenue: b.total_revenue, dogDays: b.dog_days, days: b.number_of_days }]
+    const allocs = b.month_allocations || [{ monthKey: b.arrival_date.substr(0, 7), revenue: b.total_revenue }]
     allocs.forEach((a: any) => {
       if (!monthMap[a.monthKey]) monthMap[a.monthKey] = { rover: 0, venmo: 0 }
       const ratio = b.total_revenue > 0 ? a.revenue / b.total_revenue : 0
@@ -90,6 +119,8 @@ export default function Dashboard() {
     { k: 'quarter', label: 'Quarter' },
     { k: 'year', label: 'Year' },
     { k: 'all', label: 'All Time' },
+    { k: 'pick', label: 'Pick Month' },
+    { k: 'custom', label: 'Custom Range' },
   ]
 
   if (loading) return <AppShell><div className="text-gray-400 text-sm">Loading…</div></AppShell>
@@ -101,13 +132,32 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Cash flow and performance overview</p>
       </div>
 
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
-        {periods.map(p => (
-          <button key={p.k} onClick={() => setPeriod(p.k)}
-            className={`px-3 py-1 rounded-md text-sm transition-colors ${period === p.k ? 'bg-white font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
-            {p.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2 mb-5">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          {periods.map(p => (
+            <button key={p.k} onClick={() => setPeriod(p.k)}
+              className={`px-3 py-1 rounded-md text-sm transition-colors ${period === p.k ? 'bg-white font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {period === 'pick' && (
+          <input
+            type="month"
+            value={pickedMonth}
+            onChange={e => setPickedMonth(e.target.value)}
+            className="input w-auto text-sm"
+          />
+        )}
+
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="input w-auto text-sm" />
+            <span className="text-gray-400 text-sm">to</span>
+            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="input w-auto text-sm" />
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-4 gap-3 mb-5">
