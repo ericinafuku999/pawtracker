@@ -46,7 +46,7 @@ function filterBookings(bookings: Booking[], period: Period, pickedMonth: string
 
 function getMonthRevenue(bookings: Booking[]) {
   const monthMap: Record<string, { rover: number; venmo: number }> = {}
-  bookings.filter(b => b.status !== 'cancelled' && b.amount_received > 0).forEach(b => {
+  bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.amount_received > 0).forEach(b => {
     const mk = getDepMonthKey(b)
     if (!monthMap[mk]) monthMap[mk] = { rover: 0, venmo: 0 }
     if (b.payment_type === 'Rover') monthMap[mk].rover += b.amount_received
@@ -80,11 +80,20 @@ export default function Dashboard() {
   useEffect(() => { load() }, [load])
 
   const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
-  const rover = bks.filter(b => b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
-  const venmo = bks.filter(b => b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
+
+  // Revenue Received = amount_received for PAID bookings only
+  const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
+  const venmo = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const totalReceived = rover + venmo
-  const expectedRevenue = bks.reduce((s, b) => s + b.total_revenue, 0)
-  const outstanding = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.total_revenue - b.amount_received, 0)
+
+  // Expected Revenue = amount_received for UNPAID or PARTIALLY PAID bookings
+  const expectedRover = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
+  const expectedVenmo = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
+  const expectedRevenue = expectedRover + expectedVenmo
+
+  // Projected Total = amount_received for ALL non-cancelled bookings
+  const projectedTotal = bks.reduce((s, b) => s + b.amount_received, 0)
+
   const cancelled = bookings.filter(b => b.status === 'cancelled')
   const lostRev = cancelled.reduce((s, b) => s + b.total_revenue, 0)
   const dogDays = bks.reduce((s, b) => s + b.dog_days, 0)
@@ -104,13 +113,13 @@ export default function Dashboard() {
 
   const metrics = [
     { label: 'Revenue Received', value: formatCurrency(totalReceived), sub: `Rover ${formatCurrency(rover)} · Venmo ${formatCurrency(venmo)}` },
-    { label: 'Expected Revenue', value: formatCurrency(expectedRevenue), sub: `${bks.length} bookings` },
-    { label: 'Outstanding', value: formatCurrency(Math.max(0, outstanding)), color: 'text-red-500' },
-    { label: 'Dog-Days', value: dogDays.toString(), sub: dogDays ? `${formatCurrency(totalReceived / dogDays)}/day` : '' },
+    { label: 'Expected Revenue', value: formatCurrency(expectedRevenue), sub: `Rover ${formatCurrency(expectedRover)} · Venmo ${formatCurrency(expectedVenmo)}` },
+    { label: 'Projected Total', value: formatCurrency(projectedTotal), sub: `paid + unpaid received` },
+    { label: 'Net Profit', value: formatCurrency(net), color: net >= 0 ? 'text-emerald-600' : 'text-red-500', sub: `after $${totalExp.toFixed(0)} expenses` },
+    { label: 'Dog-Days', value: dogDays.toString(), sub: dogDays ? `${formatCurrency(projectedTotal / dogDays)}/day` : '' },
     { label: 'Total Expenses', value: formatCurrency(totalExp) },
-    { label: 'Net Profit', value: formatCurrency(net), color: net >= 0 ? 'text-emerald-600' : 'text-red-500' },
     { label: 'Cancelled', value: cancelled.length.toString(), sub: `${formatCurrency(lostRev)} lost` },
-    { label: 'Margin', value: (totalReceived > 0 ? ((net / totalReceived) * 100).toFixed(0) : 0) + '%' },
+    { label: 'Margin', value: totalReceived > 0 ? ((net / totalReceived) * 100).toFixed(0) + '%' : '—' },
   ]
 
   const periods: { k: Period; label: string }[] = [
