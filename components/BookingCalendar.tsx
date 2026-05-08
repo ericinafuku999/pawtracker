@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Booking } from '@/lib/types'
 import { useRouter } from 'next/navigation'
 import { formatDate, formatCurrency } from '@/lib/utils'
+import { createClient } from '@/lib/supabase'
 
 const COLORS = [
   'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -34,15 +35,29 @@ function DogCapacityBadge({ count }: { count: number }) {
   return null
 }
 
-interface Props { bookings: Booking[]; compact?: boolean }
+interface Props { bookings: Booking[]; compact?: boolean; onRefresh?: () => void }
 
-export default function BookingCalendar({ bookings, compact = false }: Props) {
+export default function BookingCalendar({ bookings, compact = false, onRefresh }: Props) {
   const [view, setView] = useState<'month' | 'week'>('month')
   const [current, setCurrent] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [localBookings, setLocalBookings] = useState<Booking[]>(bookings)
   const router = useRouter()
+  const supabase = createClient()
 
-  const activeBookings = bookings.filter(b => b.status !== 'cancelled')
+  // Keep local bookings in sync with prop
+  if (bookings !== localBookings && bookings.length !== localBookings.length) {
+    setLocalBookings(bookings)
+  }
+
+  const activeBookings = localBookings.filter(b => b.status !== 'cancelled')
+
+  async function deleteBooking(id: string) {
+    if (!confirm('Permanently delete this booking? This cannot be undone.')) return
+    await supabase.from('bookings').delete().eq('id', id)
+    setLocalBookings(prev => prev.filter(b => b.id !== id))
+    if (onRefresh) onRefresh()
+  }
 
   function prev() {
     const d = new Date(current)
@@ -77,6 +92,10 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
     return activeBookings.filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)) || sameDay(date, parseD(b.arrival_date)))
   }
 
+  function displayName(b: Booking) {
+    return b.dog_names && b.dog_names.trim() !== '' ? b.dog_names : b.customer_name || 'Unnamed'
+  }
+
   const days = view === 'month' ? getMonthDays() : getWeekDays()
   const today = new Date()
   const monthName = current.toLocaleString('en-US', { month: 'long', year: 'numeric' })
@@ -87,14 +106,14 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
   const colorMap: Record<string, string> = {}
   activeBookings.forEach((b, i) => { colorMap[b.id] = getColor(i) })
 
-  const overbookedDays = days.filter(d => getDogCountForDay(d, bookings) >= 8)
-  const warningDays = days.filter(d => { const c = getDogCountForDay(d, bookings); return c >= 5 && c < 8 })
+  const overbookedDays = days.filter(d => getDogCountForDay(d, localBookings) >= 8)
+  const warningDays = days.filter(d => { const c = getDogCountForDay(d, localBookings); return c >= 5 && c < 8 })
 
   const rows: Date[][] = []
   for (let i = 0; i < days.length; i += 7) rows.push(days.slice(i, i + 7))
   const selectedRowIndex = selectedDay ? rows.findIndex(row => row.some(d => sameDay(d, selectedDay))) : -1
   const selectedDayBookings = selectedDay ? getBookingsForDay(selectedDay) : []
-  const selectedDogCount = selectedDay ? getDogCountForDay(selectedDay, bookings) : 0
+  const selectedDogCount = selectedDay ? getDogCountForDay(selectedDay, localBookings) : 0
 
   function handleDayClick(day: Date) {
     if (selectedDay && sameDay(day, selectedDay)) setSelectedDay(null)
@@ -151,7 +170,7 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
               const isSelected = !!selectedDay && sameDay(day, selectedDay)
               const isCurrentMonth = view === 'week' || day.getMonth() === current.getMonth()
               const dayBookings = getBookingsForDay(day)
-              const dogCount = getDogCountForDay(day, bookings)
+              const dogCount = getDogCountForDay(day, localBookings)
               const isOverbooked = dogCount >= 8
               const isWarning = dogCount >= 5 && dogCount < 8
 
@@ -173,7 +192,7 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
                   <div className="space-y-0.5">
                     {dayBookings.slice(0, compact ? 1 : 2).map(b => (
                       <div key={b.id} className={`text-xs px-1 py-0.5 rounded border truncate ${colorMap[b.id]}`}>
-                        {b.customer_name}
+                        {displayName(b)}
                       </div>
                     ))}
                     {dayBookings.length > (compact ? 1 : 2) && (
@@ -207,8 +226,8 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
                       <div className="flex items-start gap-3">
                         <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${colorMap[b.id]}`}></div>
                         <div>
-                          <div className="font-medium text-sm">{b.customer_name}</div>
-                          <div className="text-xs text-gray-600 mt-0.5">🐾 {b.dog_names || 'Unnamed'} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}</div>
+                          <div className="font-medium text-sm">{b.dog_names || b.customer_name || 'Unnamed'}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}</div>
                           <div className="text-xs text-gray-400 mt-0.5">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {b.dog_days} dog-days · {formatCurrency(b.total_revenue)}</div>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
@@ -217,11 +236,18 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
                           </div>
                         </div>
                       </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }}
-                        className="btn text-xs py-1 px-2 flex-shrink-0 ml-2">
-                        Edit
-                      </button>
+                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }}
+                          className="btn text-xs py-1 px-2">
+                          Edit
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }}
+                          className="btn btn-danger text-xs py-1 px-2">
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -235,7 +261,7 @@ export default function BookingCalendar({ bookings, compact = false }: Props) {
         <div className="mt-3 flex flex-wrap gap-2">
           {activeBookings.slice(0, 8).map((b, i) => (
             <div key={b.id} className={`text-xs px-2 py-0.5 rounded-full border ${getColor(i)}`}>
-              {b.customer_name} ({b.number_of_dogs}🐾)
+              {displayName(b)} ({b.number_of_dogs}🐾)
             </div>
           ))}
         </div>
