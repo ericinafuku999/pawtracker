@@ -14,6 +14,10 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
+function getDepMonthKey(b: Booking) {
+  return b.departure_date.substr(0, 7)
+}
+
 function filterBookings(bookings: Booking[], period: Period, pickedMonth: string, customStart: string, customEnd: string) {
   const now = new Date()
   const nowMonth = getMonthKey(now)
@@ -24,29 +28,31 @@ function filterBookings(bookings: Booking[], period: Period, pickedMonth: string
     if (b.status === 'cancelled') return false
     if (period === 'all') return true
 
-    const allocs = (b.month_allocations || [{ monthKey: b.arrival_date.substr(0, 7) }]) as any[]
+    const depMonth = getDepMonthKey(b)
+    const [y, m] = depMonth.split('-').map(Number)
 
-    if (period === 'pick') {
-      return allocs.some((a: any) => a.monthKey === pickedMonth)
-    }
-
+    if (period === 'pick') return depMonth === pickedMonth
     if (period === 'custom') {
       if (!customStart || !customEnd) return false
-      const arr = new Date(b.arrival_date)
       const dep = new Date(b.departure_date)
-      const start = new Date(customStart)
-      const end = new Date(customEnd)
-      return arr <= end && dep >= start
+      return dep >= new Date(customStart) && dep <= new Date(customEnd)
     }
-
-    return allocs.some((a: any) => {
-      const [y, m] = a.monthKey.split('-').map(Number)
-      if (period === 'month') return a.monthKey === nowMonth
-      if (period === 'quarter') return Math.floor((m - 1) / 3) === nowQuarter && y === nowYear
-      if (period === 'year') return y === nowYear
-      return true
-    })
+    if (period === 'month') return depMonth === nowMonth
+    if (period === 'quarter') return Math.floor((m - 1) / 3) === nowQuarter && y === nowYear
+    if (period === 'year') return y === nowYear
+    return true
   })
+}
+
+function getMonthRevenue(bookings: Booking[]) {
+  const monthMap: Record<string, { rover: number; venmo: number }> = {}
+  bookings.filter(b => b.status !== 'cancelled' && b.amount_received > 0).forEach(b => {
+    const mk = getDepMonthKey(b)
+    if (!monthMap[mk]) monthMap[mk] = { rover: 0, venmo: 0 }
+    if (b.payment_type === 'Rover') monthMap[mk].rover += b.amount_received
+    else monthMap[mk].venmo += b.amount_received
+  })
+  return monthMap
 }
 
 export default function Dashboard() {
@@ -85,18 +91,11 @@ export default function Dashboard() {
   const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
   const net = totalReceived - totalExp
 
-  const monthMap: Record<string, { rover: number; venmo: number }> = {}
-  bookings.filter(b => b.status !== 'cancelled' && b.amount_received > 0).forEach(b => {
-    const allocs = b.month_allocations || [{ monthKey: b.arrival_date.substr(0, 7), revenue: b.total_revenue }]
-    allocs.forEach((a: any) => {
-      if (!monthMap[a.monthKey]) monthMap[a.monthKey] = { rover: 0, venmo: 0 }
-      const ratio = b.total_revenue > 0 ? a.revenue / b.total_revenue : 0
-      const allocated = b.amount_received * ratio
-      if (b.payment_type === 'Rover') monthMap[a.monthKey].rover += allocated
-      else monthMap[a.monthKey].venmo += allocated
-    })
-  })
-  const chartData = Object.entries(monthMap).sort((a, b) => a[0] > b[0] ? 1 : -1).slice(-6).map(([k, v]) => ({ name: monthLabel(k), Rover: Math.round(v.rover), Venmo: Math.round(v.venmo) }))
+  const monthMap = getMonthRevenue(bookings)
+  const chartData = Object.entries(monthMap)
+    .sort((a, b) => a[0] > b[0] ? 1 : -1)
+    .slice(-6)
+    .map(([k, v]) => ({ name: monthLabel(k), Rover: Math.round(v.rover), Venmo: Math.round(v.venmo) }))
 
   const expByCat: Record<string, number> = {}
   expenses.forEach(e => { expByCat[e.category] = (expByCat[e.category] || 0) + e.amount })
@@ -141,16 +140,9 @@ export default function Dashboard() {
             </button>
           ))}
         </div>
-
         {period === 'pick' && (
-          <input
-            type="month"
-            value={pickedMonth}
-            onChange={e => setPickedMonth(e.target.value)}
-            className="input w-auto text-sm"
-          />
+          <input type="month" value={pickedMonth} onChange={e => setPickedMonth(e.target.value)} className="input w-auto text-sm" />
         )}
-
         {period === 'custom' && (
           <div className="flex items-center gap-2">
             <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="input w-auto text-sm" />
