@@ -27,6 +27,11 @@ export default function ExpensesPage() {
   const now = new Date()
   const currentYear = now.getFullYear()
 
+  function monthLabel(mk: string) {
+    const [y, m] = mk.split('-').map(Number)
+    return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  }
+
   const filtered = expenses.filter(e => {
     if (filters.category && e.category !== filters.category) return false
     if (filters.tax === 'yes' && !e.tax_deductible) return false
@@ -34,17 +39,13 @@ export default function ExpensesPage() {
     return true
   })
 
-  // Year totals
-  const yearExpenses = filtered.filter(e => new Date(e.expense_date).getFullYear() === currentYear)
+  const yearExpenses = filtered.filter(e => e.expense_date.startsWith(String(currentYear)))
   const yearTotal = yearExpenses.reduce((s, e) => s + e.amount, 0)
   const yearDeductible = yearExpenses.filter(e => e.tax_deductible).reduce((s, e) => s + e.deductible_amount, 0)
   const yearNonDeductible = yearTotal - yearDeductible
-
-  // All time totals
   const allTotal = filtered.reduce((s, e) => s + e.amount, 0)
   const allDeductible = filtered.filter(e => e.tax_deductible).reduce((s, e) => s + e.deductible_amount, 0)
 
-  // Group by month
   const grouped: Record<string, Expense[]> = {}
   filtered.forEach(e => {
     const mk = e.expense_date.substr(0, 7)
@@ -71,7 +72,7 @@ export default function ExpensesPage() {
         <Link href="/expenses/new" className="btn btn-primary">+ New Expense</Link>
       </div>
 
-      {/* Year summary for tax purposes */}
+      {/* Year summary */}
       <div className="card mb-5 border-emerald-100 bg-emerald-50">
         <div className="flex items-center justify-between mb-3">
           <div className="font-semibold text-sm text-emerald-800">📋 {currentYear} Tax Year Summary</div>
@@ -121,18 +122,14 @@ export default function ExpensesPage() {
         <div className="card text-center text-gray-400 py-8">No expenses found</div>
       ) : sortedMonths.map(mk => {
         const monthExpenses = grouped[mk]
-        const monthDate = new Date(mk + '-01')
-        const label = monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })
         const monthTotal = monthExpenses.reduce((s, e) => s + e.amount, 0)
         const monthDeductible = monthExpenses.filter(e => e.tax_deductible).reduce((s, e) => s + e.deductible_amount, 0)
 
         return (
-          <div key={mk} className="mb-4">
+          <div key={mk} className="mb-6">
             <div className="flex items-center justify-between mb-2 px-1">
-              <h2 className="font-semibold text-sm text-gray-700">{label}</h2>
+              <h2 className="font-semibold text-sm text-gray-700">{monthLabel(mk)}</h2>
               <div className="flex gap-3 text-xs text-gray-500">
-                <span>Total: <strong>${monthTotal.toFixed(2)}</strong></span>
-                <span>Deductible: <strong className="text-emerald-600">${monthDeductible.toFixed(2)}</strong></span>
                 <span>{monthExpenses.length} expense{monthExpenses.length !== 1 ? 's' : ''}</span>
               </div>
             </div>
@@ -172,6 +169,16 @@ export default function ExpensesPage() {
                         </td>
                       </tr>
                     ))}
+                    {/* Totals row */}
+                    <tr className="bg-gray-50 border-t-2 border-gray-200">
+                      <td className="td" colSpan={3}>
+                        <span className="font-semibold text-sm text-gray-700">Month Total</span>
+                      </td>
+                      <td className="td font-bold text-gray-900">${monthTotal.toFixed(2)}</td>
+                      <td className="td"></td>
+                      <td className="td font-bold text-emerald-600">${monthDeductible.toFixed(2)}</td>
+                      <td className="td" colSpan={4}></td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
