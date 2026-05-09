@@ -134,8 +134,8 @@ function BookingsContent() {
               <div className="card text-center text-gray-400 py-8">No bookings found</div>
             ) : sortedMonths.map(mk => {
               const monthBookings = grouped[mk]
-              const monthDate = new Date(mk + '-01')
-              const label = monthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+              const [y, m] = mk.split('-').map(Number)
+const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
               const monthReceived = monthBookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((s, b) => s + b.amount_received, 0)
               const monthProjected = monthBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.amount_received, 0)
 
