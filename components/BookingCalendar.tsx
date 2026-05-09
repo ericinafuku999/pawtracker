@@ -35,9 +35,20 @@ function DogCapacityBadge({ count }: { count: number }) {
   return null
 }
 
-interface Props { bookings: Booking[]; compact?: boolean; onRefresh?: () => void }
+function matchesSearch(b: Booking, q: string) {
+  if (!q) return true
+  const lower = q.toLowerCase()
+  return (b.customer_name || '').toLowerCase().includes(lower) ||
+    (b.dog_names || '').toLowerCase().includes(lower)
+}
 
-export default function BookingCalendar({ bookings, compact = false, onRefresh }: Props) {
+function displayName(b: Booking) {
+  return b.dog_names && b.dog_names.trim() !== '' ? b.dog_names : b.customer_name || 'Unnamed'
+}
+
+interface Props { bookings: Booking[]; compact?: boolean; onRefresh?: () => void; searchQuery?: string }
+
+export default function BookingCalendar({ bookings, compact = false, onRefresh, searchQuery = '' }: Props) {
   const [view, setView] = useState<'month' | 'week'>('month')
   const [current, setCurrent] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -45,12 +56,14 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
   const router = useRouter()
   const supabase = createClient()
 
-  // Keep local bookings in sync with prop
-  if (bookings !== localBookings && bookings.length !== localBookings.length) {
+  if (JSON.stringify(bookings.map(b => b.id)) !== JSON.stringify(localBookings.map(b => b.id))) {
     setLocalBookings(bookings)
   }
 
   const activeBookings = localBookings.filter(b => b.status !== 'cancelled')
+  const hasSearch = searchQuery.trim().length > 0
+  const matchedBookings = activeBookings.filter(b => matchesSearch(b, searchQuery))
+  const matchedIds = new Set(matchedBookings.map(b => b.id))
 
   async function deleteBooking(id: string) {
     if (!confirm('Permanently delete this booking? This cannot be undone.')) return
@@ -92,10 +105,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
     return activeBookings.filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)) || sameDay(date, parseD(b.arrival_date)))
   }
 
-  function displayName(b: Booking) {
-    return b.dog_names && b.dog_names.trim() !== '' ? b.dog_names : b.customer_name || 'Unnamed'
-  }
-
   const days = view === 'month' ? getMonthDays() : getWeekDays()
   const today = new Date()
   const monthName = current.toLocaleString('en-US', { month: 'long', year: 'numeric' })
@@ -122,6 +131,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
 
   return (
     <div>
+      {/* Alert banners */}
       {overbookedDays.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
           <span className="text-lg">🚨</span>
@@ -137,6 +147,27 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
         </div>
       )}
 
+      {/* Search results summary */}
+      {hasSearch && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3">
+          {matchedBookings.length === 0 ? (
+            <span className="text-sm text-gray-500">No bookings found for "{searchQuery}"</span>
+          ) : (
+            <div>
+              <span className="text-sm font-semibold text-emerald-700">{matchedBookings.length} booking{matchedBookings.length !== 1 ? 's' : ''} matching "{searchQuery}"</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {matchedBookings.map((b, i) => (
+                  <span key={i} className="text-xs bg-white border border-emerald-200 rounded-full px-2 py-0.5 text-emerald-800">
+                    🐾 {displayName(b)} · {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {b.number_of_days} days
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <button onClick={prev} className="btn py-1 px-2 text-xs">‹</button>
@@ -156,12 +187,14 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
         </div>
       </div>
 
+      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
           <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
         ))}
       </div>
 
+      {/* Calendar rows */}
       {rows.map((row, rowIdx) => (
         <div key={rowIdx}>
           <div className="grid grid-cols-7">
@@ -173,15 +206,18 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
               const dogCount = getDogCountForDay(day, localBookings)
               const isOverbooked = dogCount >= 8
               const isWarning = dogCount >= 5 && dogCount < 8
+              const hasMatch = hasSearch && dayBookings.some(b => matchedIds.has(b.id))
 
               return (
                 <div key={i}
                   onClick={() => handleDayClick(day)}
-                  className={`${view === 'month' ? 'min-h-[90px]' : 'min-h-[130px]'} border p-1 cursor-pointer transition-colors
+                  className={`${view === 'month' ? 'min-h-[90px]' : 'min-h-[130px]'} border p-1 cursor-pointer transition-all
                     ${isSelected ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
+                      hasMatch ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200' :
                       isOverbooked ? 'border-red-200 bg-red-50 hover:bg-red-100' :
                       isWarning ? 'border-amber-200 bg-amber-50 hover:bg-amber-100' :
-                      isCurrentMonth ? 'border-gray-100 bg-white hover:bg-gray-50' : 'border-gray-100 bg-gray-50'}`}>
+                      isCurrentMonth ? 'border-gray-100 bg-white hover:bg-gray-50' : 'border-gray-100 bg-gray-50'}
+                    ${hasSearch && !hasMatch ? 'opacity-40' : ''}`}>
                   <div className="flex items-center justify-between mb-0.5">
                     <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full font-medium
                       ${isToday ? 'bg-emerald-500 text-white' : isCurrentMonth ? 'text-gray-700' : 'text-gray-300'}`}>
@@ -190,11 +226,18 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
                     <DogCapacityBadge count={dogCount} />
                   </div>
                   <div className="space-y-0.5">
-                    {dayBookings.slice(0, compact ? 1 : 2).map(b => (
-                      <div key={b.id} className={`text-xs px-1 py-0.5 rounded border truncate ${colorMap[b.id]}`}>
-                        {displayName(b)}
-                      </div>
-                    ))}
+                    {dayBookings.slice(0, compact ? 1 : 2).map(b => {
+                      const isMatch = hasSearch && matchedIds.has(b.id)
+                      const isNotMatch = hasSearch && !matchedIds.has(b.id)
+                      return (
+                        <div key={b.id} className={`text-xs px-1 py-0.5 rounded border truncate transition-all
+                          ${isMatch ? 'ring-2 ring-emerald-400 font-bold shadow-sm ' + colorMap[b.id] :
+                            isNotMatch ? 'opacity-30 ' + colorMap[b.id] :
+                            colorMap[b.id]}`}>
+                          {isMatch && '★ '}{displayName(b)}
+                        </div>
+                      )
+                    })}
                     {dayBookings.length > (compact ? 1 : 2) && (
                       <div className="text-xs text-gray-400 pl-1">+{dayBookings.length - (compact ? 1 : 2)} more</div>
                     )}
@@ -204,6 +247,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
             })}
           </div>
 
+          {/* Inline day detail panel */}
           {selectedDay && selectedRowIndex === rowIdx && (
             <div className="border border-emerald-200 rounded-xl bg-white shadow-sm overflow-hidden mb-1">
               <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
@@ -221,35 +265,30 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
                 <div className="px-4 py-5 text-center text-gray-400 text-sm">No bookings on this day</div>
               ) : (
                 <div className="overflow-y-auto" style={{ maxHeight: '280px' }}>
-                  {selectedDayBookings.map((b) => (
-                    <div key={b.id} className="flex items-start justify-between px-4 py-3 border-b border-gray-50 hover:bg-gray-50 last:border-0">
-                      <div className="flex items-start gap-3">
-                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${colorMap[b.id]}`}></div>
-                        <div>
-                          <div className="font-medium text-sm">{b.dog_names || b.customer_name || 'Unnamed'}</div>
-                          <div className="text-xs text-gray-500 mt-0.5">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}</div>
-                          <div className="text-xs text-gray-400 mt-0.5">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {b.dog_days} dog-days · {formatCurrency(b.total_revenue)}</div>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
-                            <span className={`badge ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
-                            <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
+                  {selectedDayBookings.map((b) => {
+                    const isMatch = hasSearch && matchedIds.has(b.id)
+                    return (
+                      <div key={b.id} className={`flex items-start justify-between px-4 py-3 border-b border-gray-50 last:border-0 ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${colorMap[b.id]}`}></div>
+                          <div>
+                            <div className="font-medium text-sm">{isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {b.dog_days} dog-days · {formatCurrency(b.total_revenue)}</div>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
+                              <span className={`badge ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
+                              <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                          <button onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1 px-2">Edit</button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1 px-2">Delete</button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }}
-                          className="btn text-xs py-1 px-2">
-                          Edit
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }}
-                          className="btn btn-danger text-xs py-1 px-2">
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -257,13 +296,18 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh }
         </div>
       ))}
 
+      {/* Legend */}
       {activeBookings.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {activeBookings.slice(0, 8).map((b, i) => (
-            <div key={b.id} className={`text-xs px-2 py-0.5 rounded-full border ${getColor(i)}`}>
-              {displayName(b)} ({b.number_of_dogs}🐾)
-            </div>
-          ))}
+          {activeBookings.slice(0, 8).map((b, i) => {
+            const isMatch = hasSearch && matchedIds.has(b.id)
+            const isNotMatch = hasSearch && !matchedIds.has(b.id)
+            return (
+              <div key={b.id} className={`text-xs px-2 py-0.5 rounded-full border transition-all ${getColor(i)} ${isMatch ? 'ring-2 ring-emerald-400 font-bold' : isNotMatch ? 'opacity-30' : ''}`}>
+                {isMatch && '★ '}{displayName(b)} ({b.number_of_dogs}🐾)
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

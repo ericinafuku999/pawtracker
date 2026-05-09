@@ -13,24 +13,18 @@ type Period = 'month' | 'quarter' | 'year' | 'all' | 'pick' | 'custom'
 function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
-
-function getDepMonthKey(b: Booking) {
-  return b.departure_date.substr(0, 7)
-}
+function getDepMonthKey(b: Booking) { return b.departure_date.substr(0, 7) }
 
 function filterBookings(bookings: Booking[], period: Period, pickedMonth: string, customStart: string, customEnd: string) {
   const now = new Date()
   const nowMonth = getMonthKey(now)
   const nowQuarter = Math.floor(now.getMonth() / 3)
   const nowYear = now.getFullYear()
-
   return bookings.filter(b => {
     if (b.status === 'cancelled') return false
     if (period === 'all') return true
-
     const depMonth = getDepMonthKey(b)
     const [y, m] = depMonth.split('-').map(Number)
-
     if (period === 'pick') return depMonth === pickedMonth
     if (period === 'custom') {
       if (!customStart || !customEnd) return false
@@ -62,6 +56,7 @@ export default function Dashboard() {
   const [pickedMonth, setPickedMonth] = useState(getMonthKey(new Date()))
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
+  const [calSearch, setCalSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
 
@@ -81,17 +76,14 @@ export default function Dashboard() {
 
   const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
 
-  // Revenue Received = amount_received for PAID bookings only
   const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
   const venmo = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const totalReceived = rover + venmo
 
-  // Expected Revenue = amount_received for UNPAID or PARTIALLY PAID bookings
   const expectedRover = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
   const expectedVenmo = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const expectedRevenue = expectedRover + expectedVenmo
 
-  // Projected Total = amount_received for ALL non-cancelled bookings
   const projectedTotal = bks.reduce((s, b) => s + b.amount_received, 0)
 
   const cancelled = bookings.filter(b => b.status === 'cancelled')
@@ -201,11 +193,18 @@ export default function Dashboard() {
       </div>
 
       <div className="card mb-4">
-        <div className="flex justify-between items-center mb-1">
+        <div className="flex justify-between items-center mb-3">
           <div className="font-medium text-sm">Booking Calendar</div>
-          <Link href="/bookings" className="text-xs text-emerald-600">View all →</Link>
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <input className="input text-xs pl-7 w-48" placeholder="Search dog or customer…" value={calSearch} onChange={e => setCalSearch(e.target.value)} />
+              <span className="absolute left-2 top-2 text-gray-400 text-xs">🔍</span>
+            </div>
+            {calSearch && <button className="btn text-xs" onClick={() => setCalSearch('')}>Clear</button>}
+            <Link href="/bookings" className="text-xs text-emerald-600">View all →</Link>
+          </div>
         </div>
-        <BookingCalendar bookings={bookings} />
+        <BookingCalendar bookings={bookings} searchQuery={calSearch} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -218,11 +217,12 @@ export default function Dashboard() {
             <p className="text-sm text-gray-400">No bookings yet. <Link href="/bookings/new" className="text-emerald-600">Add one →</Link></p>
           ) : (
             <table className="w-full">
-              <thead><tr><th className="th">Customer</th><th className="th">Received</th><th className="th">Status</th></tr></thead>
+              <thead><tr><th className="th">Customer</th><th className="th">Dogs</th><th className="th">Received</th><th className="th">Status</th></tr></thead>
               <tbody>
                 {bookings.slice(0, 5).map(b => (
                   <tr key={b.id} className="hover:bg-gray-50">
                     <td className="td font-medium">{b.customer_name}</td>
+                    <td className="td text-gray-500">{b.dog_names}</td>
                     <td className="td">{formatCurrency(b.amount_received)}</td>
                     <td className="td">
                       <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
