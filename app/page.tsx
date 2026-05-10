@@ -125,13 +125,11 @@ export default function Dashboard() {
 
     function handleClick() {
       if (profileId) router.push(`/dogs/${profileId}`)
-      else router.push(`/dogs/new`)
+      else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
 
     return (
-      <div
-        onClick={handleClick}
-        className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
+      <div onClick={handleClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative">
           {photo
             ? <img src={photo} alt={booking.dog_names} className="w-full h-full object-cover" />
@@ -327,7 +325,7 @@ export default function Dashboard() {
             <Link href="/bookings" className="text-xs text-emerald-600 whitespace-nowrap">View all →</Link>
           </div>
         </div>
-        <BookingCalendar bookings={bookings} searchQuery={calSearch} />
+        <BookingCalendar bookings={bookings} searchQuery={calSearch} dogProfiles={dogProfiles} />
       </div>
 
       {/* Recent bookings + expenses */}

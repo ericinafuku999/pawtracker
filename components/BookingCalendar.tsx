@@ -46,9 +46,22 @@ function displayName(b: Booking) {
   return b.dog_names && b.dog_names.trim() !== '' ? b.dog_names : b.customer_name || 'Unnamed'
 }
 
-interface Props { bookings: Booking[]; compact?: boolean; onRefresh?: () => void; searchQuery?: string }
+interface DogProfile {
+  id: string
+  dog_name: string
+  owner_name: string
+  photo_url: string | null
+}
 
-export default function BookingCalendar({ bookings, compact = false, onRefresh, searchQuery = '' }: Props) {
+interface Props {
+  bookings: Booking[]
+  compact?: boolean
+  onRefresh?: () => void
+  searchQuery?: string
+  dogProfiles?: DogProfile[]
+}
+
+export default function BookingCalendar({ bookings, compact = false, onRefresh, searchQuery = '', dogProfiles = [] }: Props) {
   const [view, setView] = useState<'month' | 'week'>('month')
   const [current, setCurrent] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -64,6 +77,30 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const hasSearch = searchQuery.trim().length > 0
   const matchedBookings = activeBookings.filter(b => matchesSearch(b, searchQuery))
   const matchedIds = new Set(matchedBookings.map(b => b.id))
+
+  function getDogProfile(dogName: string) {
+    return dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
+      dogName.toLowerCase().includes(d.dog_name.toLowerCase()) ||
+      d.dog_name.toLowerCase().includes(dogName.toLowerCase())
+    ) || null
+  }
+
+  function handleDogNameClick(e: React.MouseEvent, booking: Booking) {
+    e.stopPropagation()
+    const profile = getDogProfile(booking.dog_names)
+    if (profile) {
+      router.push(`/dogs/${profile.id}`)
+    } else {
+      const params = new URLSearchParams({
+        dogName: booking.dog_names,
+        customerName: booking.customer_name,
+        numDogs: String(booking.number_of_dogs),
+        rate: String(booking.rate_per_dog_day),
+      })
+      router.push(`/dogs/new?${params.toString()}`)
+    }
+  }
 
   async function deleteBooking(id: string) {
     if (!confirm('Permanently delete this booking? This cannot be undone.')) return
@@ -268,31 +305,47 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
               {selectedDayBookings.length === 0 ? (
                 <div className="px-4 py-5 text-center text-gray-400 text-sm">No bookings on this day</div>
               ) : (
-                <div className="overflow-y-auto" style={{ maxHeight: '280px' }}>
+                <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
+                    const profile = getDogProfile(b.dog_names)
                     return (
                       <div key={b.id}
-                        className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0 cursor-pointer
+                        className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
                           ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}
                         onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
-                        <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
-                          <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${colorMap[b.id]}`}></div>
-                          <div className="min-w-0">
-                            <div className="font-medium text-sm truncate">{isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}</div>
-                            <div className="text-xs text-gray-500 truncate">👤 {b.customer_name}</div>
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Dog photo */}
+                          <div
+                            className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all"
+                            onClick={e => handleDogNameClick(e, b)}
+                            title={profile ? `Edit ${b.dog_names}'s profile` : `Create profile for ${b.dog_names}`}>
+                            {profile?.photo_url
+                              ? <img src={profile.photo_url} alt={b.dog_names} className="w-full h-full object-cover" />
+                              : <span className="text-xl">🐾</span>
+                            }
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            {/* Clickable dog name */}
+                            <button
+                              onClick={e => handleDogNameClick(e, b)}
+                              className="font-semibold text-sm text-left hover:text-emerald-600 hover:underline transition-colors truncate block w-full">
+                              {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
+                              {!profile && <span className="ml-1 text-xs text-gray-400">(no profile)</span>}
+                            </button>
+                            <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
                             <div className="text-xs text-gray-400">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}</div>
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
                               <span className={`badge text-xs ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
-                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click to edit</div>
+                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click row to edit booking</div>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
-                          <button onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1.5 px-2 md:py-1">Edit</button>
-                          <button onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
+                          <button onClick={e => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1.5 px-2 md:py-1">Edit</button>
+                          <button onClick={e => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
                         </div>
                       </div>
                     )
@@ -304,7 +357,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       ))}
 
-      {/* Legend — hidden on mobile */}
+      {/* Legend */}
       {activeBookings.length > 0 && (
         <div className="mt-3 hidden md:flex flex-wrap gap-2">
           {activeBookings.slice(0, 8).map((b, i) => {

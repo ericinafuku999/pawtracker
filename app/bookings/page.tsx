@@ -8,8 +8,16 @@ import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
+interface DogProfile {
+  id: string
+  dog_name: string
+  owner_name: string
+  photo_url: string | null
+}
+
 function BookingsContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
+  const [dogProfiles, setDogProfiles] = useState<DogProfile[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [search, setSearch] = useState('')
@@ -23,8 +31,12 @@ function BookingsContent() {
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const { data } = await supabase.from('bookings').select('*').eq('user_id', user.id).order('departure_date', { ascending: false })
-    setBookings(data || [])
+    const [{ data: bks }, { data: dogs }] = await Promise.all([
+      supabase.from('bookings').select('*').eq('user_id', user.id).order('departure_date', { ascending: false }),
+      supabase.from('dogs').select('id, dog_name, owner_name, photo_url').eq('user_id', user.id),
+    ])
+    setBookings(bks || [])
+    setDogProfiles(dogs || [])
     setLoading(false)
     const scrollY = sessionStorage.getItem('bookings_scroll')
     if (scrollY) {
@@ -118,7 +130,7 @@ function BookingsContent() {
 
       {view === 'calendar' ? (
         <div className="card">
-          <BookingCalendar bookings={bookings} onRefresh={load} searchQuery={search} />
+          <BookingCalendar bookings={bookings} onRefresh={load} searchQuery={search} dogProfiles={dogProfiles} />
         </div>
       ) : (
         <>
@@ -179,7 +191,7 @@ function BookingsContent() {
                         </div>
                       ))}
                     </div>
-                    {/* Desktop table with double-click */}
+                    {/* Desktop table */}
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full">
                         <thead><tr>

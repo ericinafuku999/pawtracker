@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppShell from '@/components/AppShell'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 interface DogFormData {
   dog_name: string
@@ -34,7 +34,28 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFromSearch, setSelectedFromSearch] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
+
+  // Pre-fill from URL params (when coming from calendar click)
+  useEffect(() => {
+    if (!isEdit) {
+      const dogName = searchParams?.get('dogName')
+      const customerName = searchParams?.get('customerName')
+      const numDogs = searchParams?.get('numDogs')
+      const rate = searchParams?.get('rate')
+      if (dogName) {
+        setForm(f => ({
+          ...f,
+          dog_name: dogName || '',
+          owner_name: customerName && customerName.toLowerCase() !== 'imported' ? customerName : '',
+          number_of_dogs: numDogs || '1',
+          default_rate: rate || '50',
+        }))
+        setSelectedFromSearch(true)
+      }
+    }
+  }, [searchParams, isEdit])
 
   useEffect(() => {
     async function loadBookings() {
@@ -186,6 +207,13 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
+        {/* Pre-filled banner */}
+        {selectedFromSearch && !searchQuery && (
+          <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700 font-medium">
+            ✓ Pre-filled from booking — review and edit below, then upload a photo
+          </div>
+        )}
+
         {/* Search section - only when creating new */}
         {!isEdit && (
           <div className="mb-5 pb-5 border-b border-gray-100">
@@ -220,9 +248,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                   </button>
                 ))}
               </div>
-            )}
-            {selectedFromSearch && (
-              <div className="mt-2 text-xs text-emerald-600 font-medium">✓ Pre-filled from booking — edit any fields below</div>
             )}
           </div>
         )}
