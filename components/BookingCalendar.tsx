@@ -19,12 +19,12 @@ const COLORS = [
 function getColor(index: number) { return COLORS[index % COLORS.length] }
 function parseD(s: string) { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d) }
 function sameDay(a: Date, b: Date) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate() }
-function isBetween(date: Date, start: Date, end: Date) { return date.getTime()>=start.getTime()&&date.getTime()<end.getTime() }
+function isBetween(date: Date, start: Date, end: Date) { return date >= start && date <= end }
 
 function getDogCountForDay(date: Date, bookings: Booking[]) {
   return bookings
     .filter(b => b.status !== 'cancelled')
-    .filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)) || sameDay(date, parseD(b.arrival_date)))
+    .filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)))
     .reduce((sum, b) => sum + b.number_of_dogs, 0)
 }
 
@@ -149,7 +149,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   }
 
   function getBookingsForDay(date: Date) {
-    return activeBookings.filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)) || sameDay(date, parseD(b.arrival_date)))
+    return activeBookings.filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)))
   }
 
   const days = view === 'month' ? getMonthDays() : getWeekDays()
@@ -313,6 +313,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
                     const profile = getDogProfile(b)
+                    const isDeparting = sameDay(parseD(b.departure_date), selectedDay!)
                     return (
                       <div key={b.id}
                         className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
@@ -328,17 +329,17 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               : <span className="text-xl">🐾</span>
                             }
                             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                              <span className="text-white text-xs font-bold">{profile ? '✏️' : '+'}</span>
+                              <span className="text-white text-xs font-bold">{profile ? '👤' : '+'}</span>
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            {/* Dog name — click opens profile */}
-                            <button
-                              onClick={e => handleProfileClick(e, b)}
-                              className="font-semibold text-sm text-left hover:text-emerald-600 hover:underline transition-colors truncate block w-full">
-                              {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
-                              {!profile && <span className="ml-1 text-xs text-gray-400 font-normal">(no profile)</span>}
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-sm truncate">
+                                {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
+                              </span>
+                              {isDeparting && <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">Departing</span>}
+                              {!profile && <span className="text-xs text-gray-400 font-normal flex-shrink-0">(no profile)</span>}
+                            </div>
                             <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
                             <div className="text-xs text-gray-400">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}</div>
                             <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -346,10 +347,9 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
-                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Click name/photo for profile · Edit button for booking</div>
+                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Photo → profile · Edit → booking</div>
                           </div>
                         </div>
-                        {/* Edit button → booking only, Del button → delete */}
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
                           <button
                             onClick={e => handleEditBooking(e, b.id)}

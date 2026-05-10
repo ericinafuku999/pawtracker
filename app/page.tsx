@@ -100,7 +100,6 @@ export default function Dashboard() {
     setDogProfiles(dogs || [])
     setLoading(false)
 
-    // Check for pending checkouts
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const pending = (bks || []).filter(b => {
@@ -173,30 +172,38 @@ export default function Dashboard() {
     ) || null
   }
 
+  // Option B: whole tile → edit booking, photo → dog profile
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const profile = getProfile(booking)
-    function handleClick() {
+
+    function handleTileClick() {
+      router.push(`/bookings/${booking.id}`)
+    }
+
+    function handlePhotoClick(e: React.MouseEvent) {
+      e.stopPropagation()
       if (profile) router.push(`/dogs/${profile.id}`)
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
+
     return (
-      <div onClick={handleClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
-        <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative">
+      <div onClick={handleTileClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
+        <div
+          onClick={handlePhotoClick}
+          className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
           {profile?.photo_url
             ? <img src={profile.photo_url} alt={booking.dog_names} className="w-full h-full object-cover" />
             : <span className="text-xl">🐾</span>
           }
-          {!profile?.photo_url && (
-            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-              <span className="text-white text-xs font-bold">+ Photo</span>
-            </div>
-          )}
+          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+            <span className="text-white text-xs font-bold">{profile ? '👤' : '+'}</span>
+          </div>
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{booking.dog_names}</div>
           <div className="text-xs text-gray-500 truncate">👤 {booking.customer_name}</div>
           {showDates && <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>}
-          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">{profile ? 'Edit profile →' : 'Create profile →'}</div>
+          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">Edit booking →</div>
         </div>
         <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
