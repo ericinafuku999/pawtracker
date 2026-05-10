@@ -44,25 +44,29 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
         .select('dog_names, customer_name, number_of_dogs, rate_per_dog_day')
         .eq('user_id', user.id)
         .neq('status', 'cancelled')
+        .order('customer_name')
         .then(({ data }) => {
           if (!data) return
-          // Sort non-Imported first, then deduplicate keeping best match
-          // But keep ALL unique dog_name + customer_name combinations
+          // Keep all bookings with valid dog names
+          // Deduplicate only by exact dog_names + customer_name combo
           const seen = new Set<string>()
-          const unique = data
-            .sort((a, b) => {
-              const aImp = (a.customer_name || '').toLowerCase() === 'imported'
-              const bImp = (b.customer_name || '').toLowerCase() === 'imported'
-              if (aImp && !bImp) return 1
-              if (!aImp && bImp) return -1
-              return 0
-            })
-            .filter(b => {
-              const key = `${(b.dog_names || '').trim()}__${(b.customer_name || '').trim()}`
-              if (!b.dog_names?.trim() || seen.has(key)) return false
-              seen.add(key)
-              return true
-            })
+          const unique = data.filter(b => {
+            const dogKey = (b.dog_names || '').trim()
+            const ownerKey = (b.customer_name || '').trim()
+            if (!dogKey) return false
+            const key = `${dogKey}|||${ownerKey}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          // Sort: real customer names first, Imported last
+          unique.sort((a, b) => {
+            const aImp = (a.customer_name || '').toLowerCase() === 'imported'
+            const bImp = (b.customer_name || '').toLowerCase() === 'imported'
+            if (aImp && !bImp) return 1
+            if (!aImp && bImp) return -1
+            return (a.dog_names || '').localeCompare(b.dog_names || '')
+          })
           setAllBookings(unique)
         })
     })
@@ -182,7 +186,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       <div className="mb-5">
         <h1 className="text-xl font-semibold">{isEdit ? 'Edit Dog Profile' : 'New Dog Profile'}</h1>
         <p className="text-sm text-gray-500">
-          {isEdit ? 'Update this dog profile' : 'Start typing a dog name to pull from existing bookings'}
+          {isEdit ? 'Update this dog profile' : 'Start typing a dog or owner name to pull from existing bookings'}
         </p>
       </div>
 
@@ -205,14 +209,14 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
         </div>
 
         <div className="mb-4">
-          <label className="label">Dog Name(s) *</label>
+          <label className="label">Dog Name(s) or Owner Name *</label>
           <div className="relative" ref={suggestRef}>
             <input
               className="input text-base sm:text-sm"
               value={form.dog_name}
               onChange={handleDogNameChange}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-              placeholder="Type to search existing bookings…"
+              placeholder="Type dog name OR owner name to search…"
             />
             {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-64 overflow-y-auto">
@@ -223,7 +227,9 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                     <div>
                       <div className="font-medium text-sm">{b.dog_names}</div>
                       <div className="text-xs text-gray-400">
-                        👤 {(b.customer_name || '').toLowerCase() === 'imported' ? '⚠️ No owner name saved' : b.customer_name}
+                        👤 {(b.customer_name || '').toLowerCase() === 'imported'
+                          ? '⚠️ No owner name — fill in below'
+                          : b.customer_name}
                         · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
                         · ${b.rate_per_dog_day}/day
                       </div>
@@ -236,7 +242,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
           {!isEdit && allBookings.length > 0 && (
             <div className="text-xs text-gray-400 mt-1">
-              {allBookings.length} unique booking{allBookings.length !== 1 ? 's' : ''} available to pull from
+              {allBookings.length} unique booking{allBookings.length !== 1 ? 's' : ''} available — search by dog name or owner name
             </div>
           )}
         </div>
