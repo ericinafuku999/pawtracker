@@ -31,9 +31,8 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const [existingPhoto, setExistingPhoto] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [allBookings, setAllBookings] = useState<BookingSuggestion[]>([])
-  const [suggestions, setSuggestions] = useState<BookingSuggestion[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const suggestRef = useRef<HTMLDivElement>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedFromSearch, setSelectedFromSearch] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -41,28 +40,26 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     async function loadBookings() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('bookings')
         .select('dog_names, customer_name, number_of_dogs, rate_per_dog_day')
         .eq('user_id', session.user.id)
         .neq('status', 'cancelled')
-      if (error || !data) return
+      if (!data) return
       const seen = new Set<string>()
-      const unique = data
-        .filter(b => {
-          const key = `${(b.dog_names || '').trim()}|||${(b.customer_name || '').trim()}`
-          if (!(b.dog_names || '').trim()) return false
-          if (seen.has(key)) return false
-          seen.add(key)
-          return true
-        })
-        .sort((a, b) => {
-          const aImp = (a.customer_name || '').toLowerCase() === 'imported'
-          const bImp = (b.customer_name || '').toLowerCase() === 'imported'
-          if (aImp && !bImp) return 1
-          if (!aImp && bImp) return -1
-          return (a.dog_names || '').localeCompare(b.dog_names || '')
-        })
+      const unique = data.filter(b => {
+        const key = `${(b.dog_names || '').trim()}|||${(b.customer_name || '').trim()}`
+        if (!(b.dog_names || '').trim()) return false
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      }).sort((a, b) => {
+        const aImp = (a.customer_name || '').toLowerCase() === 'imported'
+        const bImp = (b.customer_name || '').toLowerCase() === 'imported'
+        if (aImp && !bImp) return 1
+        if (!aImp && bImp) return -1
+        return (a.dog_names || '').localeCompare(b.dog_names || '')
+      })
       setAllBookings(unique)
     }
     loadBookings()
@@ -86,22 +83,12 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     }
   }, [dogId])
 
-  function handleDogNameChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value
-    setForm(f => ({ ...f, dog_name: val }))
-    if (!val.trim()) {
-      setSuggestions([])
-      setShowSuggestions(false)
-      return
-    }
-    const q = val.toLowerCase()
-    const matches = allBookings.filter(b =>
-      (b.dog_names || '').toLowerCase().includes(q) ||
-      (b.customer_name || '').toLowerCase().includes(q)
-    )
-    setSuggestions(matches)
-    setShowSuggestions(true)
-  }
+  const suggestions = searchQuery.trim().length > 0
+    ? allBookings.filter(b =>
+        (b.dog_names || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (b.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : []
 
   function selectSuggestion(b: BookingSuggestion) {
     setForm(f => ({
@@ -111,19 +98,9 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       number_of_dogs: String(b.number_of_dogs),
       default_rate: String(b.rate_per_dog_day),
     }))
-    setSuggestions([])
-    setShowSuggestions(false)
+    setSearchQuery('')
+    setSelectedFromSearch(true)
   }
-
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (suggestRef.current && !suggestRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   const set = (k: keyof DogFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -186,11 +163,12 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       <div className="mb-5">
         <h1 className="text-xl font-semibold">{isEdit ? 'Edit Dog Profile' : 'New Dog Profile'}</h1>
         <p className="text-sm text-gray-500">
-          {isEdit ? 'Update this dog profile' : 'Type a dog name OR owner name to search existing bookings'}
+          {isEdit ? 'Update this dog profile' : 'Search your existing bookings to pre-fill this form'}
         </p>
       </div>
 
       <div className="card max-w-lg">
+        {/* Photo upload */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-5">
           <div className="w-28 h-28 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-emerald-50 flex items-center justify-center border-2 border-dashed border-emerald-200 flex-shrink-0">
             {photoPreview || existingPhoto ? (
@@ -208,44 +186,56 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
-        <div className="mb-4">
-          <label className="label">Search by Dog Name or Owner Name *</label>
-          <div className="relative" ref={suggestRef}>
+        {/* Search section - only show when creating new */}
+        {!isEdit && (
+          <div className="mb-5 pb-5 border-b border-gray-100">
+            <label className="label">Search existing bookings</label>
             <input
-              className="input text-base sm:text-sm"
-              value={form.dog_name}
-              onChange={handleDogNameChange}
+              className="input text-base sm:text-sm mb-2"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSelectedFromSearch(false) }}
               placeholder={`Search ${allBookings.length} bookings by dog or owner name…`}
             />
-            {showSuggestions && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-64 overflow-y-auto">
+            {/* Always render results when query exists */}
+            {searchQuery.trim().length > 0 && (
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {suggestions.length === 0 ? (
-                  <div className="px-3 py-3 text-sm text-gray-400">No matches found</div>
-                ) : suggestions.map((b, i) => (
-                  <div key={i}
-                    className="flex items-center justify-between px-3 py-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 last:border-0"
-                    onMouseDown={() => selectSuggestion(b)}>
-                    <div>
-                      <div className="font-medium text-sm">{b.dog_names}</div>
-                      <div className="text-xs text-gray-400">
-                        👤 {(b.customer_name || '').toLowerCase() === 'imported'
-                          ? '⚠️ No owner name saved'
-                          : b.customer_name}
-                        · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
-                        · ${b.rate_per_dog_day}/day
-                      </div>
-                    </div>
-                    <span className="text-xs text-emerald-600 font-medium ml-2 whitespace-nowrap">Use →</span>
+                  <div className="px-3 py-3 text-sm text-gray-400 bg-white">
+                    No matches for "{searchQuery}"
                   </div>
-                ))}
+                ) : (
+                  suggestions.map((b, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => selectSuggestion(b)}
+                      className="w-full flex items-center justify-between px-3 py-3 bg-white hover:bg-emerald-50 border-b border-gray-50 last:border-0 text-left transition-colors">
+                      <div>
+                        <div className="font-medium text-sm">{b.dog_names}</div>
+                        <div className="text-xs text-gray-400">
+                          👤 {(b.customer_name || '').toLowerCase() === 'imported'
+                            ? '⚠️ No owner name saved'
+                            : b.customer_name}
+                          · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
+                          · ${b.rate_per_dog_day}/day
+                        </div>
+                      </div>
+                      <span className="text-xs text-emerald-600 font-semibold ml-2 whitespace-nowrap">Use →</span>
+                    </button>
+                  ))
+                )}
               </div>
             )}
+            {selectedFromSearch && (
+              <div className="mt-2 text-xs text-emerald-600 font-medium">✓ Pre-filled from booking — edit any fields below</div>
+            )}
           </div>
-          {!isEdit && (
-            <div className="text-xs text-gray-400 mt-1">
-              {allBookings.length} unique bookings loaded — type to search
-            </div>
-          )}
+        )}
+
+        {/* Form fields */}
+        <div className="mb-4">
+          <label className="label">Dog Name(s) *</label>
+          <input className="input text-base sm:text-sm" value={form.dog_name} onChange={set('dog_name')} placeholder="e.g. Charlie or Mable & Piper" />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
