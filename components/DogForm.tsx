@@ -37,7 +37,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const searchParams = useSearchParams()
   const supabase = createClient()
 
-  // Pre-fill from URL params (when coming from calendar click)
   useEffect(() => {
     if (!isEdit) {
       const dogName = searchParams?.get('dogName')
@@ -133,6 +132,17 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     setPhotoPreview(URL.createObjectURL(file))
   }
 
+  async function removePhoto() {
+    if (!confirm('Remove this photo?')) return
+    setPhoto(null)
+    setPhotoPreview(null)
+    setExistingPhoto(null)
+    // If editing, save null photo to database immediately
+    if (dogId) {
+      await supabase.from('dogs').update({ photo_url: null, updated_at: new Date().toISOString() }).eq('id', dogId)
+    }
+  }
+
   async function save() {
     if (!form.dog_name) { alert('Dog name is required'); return }
     setSaving(true)
@@ -170,7 +180,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     }
 
     setSaving(false)
-    // Go back to previous page instead of always going to /dogs
     router.back()
   }
 
@@ -179,6 +188,8 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     await supabase.from('dogs').delete().eq('id', dogId)
     router.push('/dogs')
   }
+
+  const showPhoto = photoPreview || existingPhoto
 
   return (
     <AppShell>
@@ -190,18 +201,29 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       </div>
 
       <div className="card max-w-lg">
-        {/* Photo upload */}
+        {/* Photo upload with X to delete */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-5">
-          <div className="w-28 h-28 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-emerald-50 flex items-center justify-center border-2 border-dashed border-emerald-200 flex-shrink-0">
-            {photoPreview || existingPhoto ? (
-              <img src={photoPreview || existingPhoto!} alt="Dog" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-4xl sm:text-3xl">🐾</span>
+          <div className="relative flex-shrink-0">
+            <div className="w-28 h-28 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-emerald-50 flex items-center justify-center border-2 border-dashed border-emerald-200">
+              {showPhoto ? (
+                <img src={photoPreview || existingPhoto!} alt="Dog" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-4xl sm:text-3xl">🐾</span>
+              )}
+            </div>
+            {/* X button to remove photo */}
+            {showPhoto && (
+              <button
+                onClick={removePhoto}
+                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-sm transition-colors"
+                title="Remove photo">
+                ✕
+              </button>
             )}
           </div>
           <div className="text-center sm:text-left">
             <label className="btn btn-primary cursor-pointer py-3 px-5 sm:py-1.5 sm:px-3 text-base sm:text-xs">
-              📷 {photoPreview || existingPhoto ? 'Change Photo' : 'Upload Photo'}
+              📷 {showPhoto ? 'Change Photo' : 'Upload Photo'}
               <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             </label>
             <div className="text-xs text-gray-400 mt-1">Tap to use camera or choose from library</div>
@@ -295,7 +317,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </button>
           {isEdit && (
             <button className="btn btn-danger justify-center py-3 sm:py-1.5 text-base sm:text-sm sm:ml-auto" onClick={deleteDog}>
-              Delete
+              Delete Profile
             </button>
           )}
         </div>

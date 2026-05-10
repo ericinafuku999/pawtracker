@@ -78,27 +78,23 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const matchedBookings = activeBookings.filter(b => matchesSearch(b, searchQuery))
   const matchedIds = new Set(matchedBookings.map(b => b.id))
 
-  // Match by dog name + owner name first, fall back to dog name only
-  function getDogProfile(booking: Booking) {
-    const exact = dogProfiles.find(d =>
+  // Strict match: dog name + owner name must both match
+  function getDogProfile(booking: Booking): DogProfile | null {
+    return dogProfiles.find(d =>
       d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
       d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
-    )
-    if (exact) return exact
-    return dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null
   }
 
-  function handleDogNameClick(e: React.MouseEvent, booking: Booking) {
+  function handleProfileClick(e: React.MouseEvent, booking: Booking) {
     e.stopPropagation()
     const profile = getDogProfile(booking)
     if (profile) {
       router.push(`/dogs/${profile.id}`)
     } else {
       const params = new URLSearchParams({
-        dogName: booking.dog_names,
-        customerName: booking.customer_name,
+        dogName: booking.dog_names || '',
+        customerName: booking.customer_name || '',
         numDogs: String(booking.number_of_dogs),
         rate: String(booking.rate_per_dog_day),
       })
@@ -310,26 +306,28 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                     return (
                       <div key={b.id}
                         className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
-                          ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}
-                        onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
+                          ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
                         <div className="flex items-start gap-3 flex-1 min-w-0">
                           {/* Dog photo — click to open profile */}
                           <div
-                            className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all"
-                            onClick={e => handleDogNameClick(e, b)}
-                            title={profile ? `Edit ${b.dog_names}'s profile` : `Create profile for ${b.dog_names}`}>
+                            className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all relative group"
+                            onClick={e => handleProfileClick(e, b)}
+                            title={profile ? `View ${b.dog_names}'s profile` : `Create profile for ${b.dog_names}`}>
                             {profile?.photo_url
                               ? <img src={profile.photo_url} alt={b.dog_names} className="w-full h-full object-cover" />
                               : <span className="text-xl">🐾</span>
                             }
+                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                              <span className="text-white text-xs font-bold">{profile ? '✏️' : '+'}</span>
+                            </div>
                           </div>
                           <div className="min-w-0 flex-1">
                             {/* Clickable dog name → profile */}
                             <button
-                              onClick={e => handleDogNameClick(e, b)}
+                              onClick={e => handleProfileClick(e, b)}
                               className="font-semibold text-sm text-left hover:text-emerald-600 hover:underline transition-colors truncate block w-full">
                               {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
-                              {!profile && <span className="ml-1 text-xs text-gray-400">(no profile)</span>}
+                              {!profile && <span className="ml-1 text-xs text-gray-400 font-normal">(no profile)</span>}
                             </button>
                             <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
                             <div className="text-xs text-gray-400">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}</div>
@@ -338,12 +336,20 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
-                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click row to edit booking · Click name for profile</div>
                           </div>
                         </div>
+                        {/* Edit button → edit booking only */}
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
-                          <button onClick={e => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1.5 px-2 md:py-1">Edit</button>
-                          <button onClick={e => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
+                          <button
+                            onClick={e => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }}
+                            className="btn text-xs py-1.5 px-2 md:py-1">
+                            Edit
+                          </button>
+                          <button
+                            onClick={e => { e.stopPropagation(); deleteBooking(b.id) }}
+                            className="btn btn-danger text-xs py-1.5 px-2 md:py-1">
+                            Del
+                          </button>
                         </div>
                       </div>
                     )
