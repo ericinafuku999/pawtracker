@@ -105,11 +105,15 @@ export default function Dashboard() {
 
   // Match strictly by dog name + owner name, fall back to dog name only
   function getProfile(booking: Booking): DogProfile | null {
-    const strict = dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
-      d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
-    )
-    if (strict) return strict
+    // If owner is known, try exact match on both
+    if ((booking.customer_name || '').toLowerCase() !== 'imported') {
+      const exact = dogProfiles.find(d =>
+        d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
+        d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
+      )
+      if (exact) return exact
+    }
+    // Fall back to dog name only
     return dogProfiles.find(d =>
       d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null

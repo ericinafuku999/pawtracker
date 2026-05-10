@@ -78,11 +78,18 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const matchedBookings = activeBookings.filter(b => matchesSearch(b, searchQuery))
   const matchedIds = new Set(matchedBookings.map(b => b.id))
 
-  // Strict match: dog name + owner name must both match
   function getDogProfile(booking: Booking): DogProfile | null {
+    // If owner is known, match on both dog name + owner name
+    if ((booking.customer_name || '').toLowerCase() !== 'imported') {
+      const exact = dogProfiles.find(d =>
+        d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
+        d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
+      )
+      if (exact) return exact
+    }
+    // Fall back to dog name only (covers Imported bookings)
     return dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
-      d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
+      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null
   }
 
