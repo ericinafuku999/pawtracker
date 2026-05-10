@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppShell from '@/components/AppShell'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { formatDate, formatCurrency } from '@/lib/utils'
 
 interface DogFormData {
   dog_name: string
@@ -20,6 +21,17 @@ interface BookingSuggestion {
   rate_per_dog_day: number
 }
 
+interface UnclaimedBooking {
+  id: string
+  dog_names: string
+  customer_name: string
+  arrival_date: string
+  departure_date: string
+  amount_received: number
+  total_revenue: number
+  checked: boolean
+}
+
 export default function DogFormContent({ dogId }: { dogId?: string }) {
   const isEdit = !!dogId
   const [form, setForm] = useState<DogFormData>({
@@ -33,6 +45,9 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const [allBookings, setAllBookings] = useState<BookingSuggestion[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedFromSearch, setSelectedFromSearch] = useState(false)
+  const [unclaimedBookings, setUnclaimedBookings] = useState<UnclaimedBooking[]>([])
+  const [showClaimPopup, setShowClaimPopup] = useState(false)
+  const [claiming, setClaiming] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -137,7 +152,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     setPhoto(null)
     setPhotoPreview(null)
     setExistingPhoto(null)
-    // If editing, save null photo to database immediately
     if (dogId) {
       await supabase.from('dogs').update({ photo_url: null, updated_at: new Date().toISOString() }).eq('id', dogId)
     }
@@ -179,8 +193,51 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       await supabase.from('dogs').insert({ ...payload, created_at: new Date().toISOString() })
     }
 
+    // Check for unclaimed Imported bookings with this dog name
+    if (form.owner_name && form.owner_name.toLowerCase() !== 'imported') {
+      const { data: importedBookings } = await supabase
+        .from('bookings')
+        .select('id, dog_names, customer_name, arrival_date, departure_date, amount_received, total_revenue')
+        .eq('user_id', session.user.id)
+        .eq('dog_names', form.dog_name)
+        .or('customer_name.eq.Imported,customer_name.eq.imported,customer_name.is.null')
+
+      if (importedBookings && importedBookings.length > 0) {
+        setUnclaimedBookings(importedBookings.map(b => ({ ...b, checked: true })))
+        setSaving(false)
+        setShowClaimPopup(true)
+        return
+      }
+    }
+
     setSaving(false)
     router.back()
+  }
+
+  async function confirmClaim() {
+    setClaiming(true)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
+
+    const toUpdate = unclaimedBookings.filter(b => b.checked)
+    for (const b of toUpdate) {
+      await supabase.from('bookings')
+        .update({ customer_name: form.owner_name, updated_at: new Date().toISOString() })
+        .eq('id', b.id)
+    }
+
+    setClaiming(false)
+    setShowClaimPopup(false)
+    router.back()
+  }
+
+  function skipClaim() {
+    setShowClaimPopup(false)
+    router.back()
+  }
+
+  function toggleBooking(id: string) {
+    setUnclaimedBookings(prev => prev.map(b => b.id === id ? { ...b, checked: !b.checked } : b))
   }
 
   async function deleteDog() {
@@ -211,7 +268,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                 <span className="text-4xl sm:text-3xl">🐾</span>
               )}
             </div>
-            {/* X button to remove photo */}
             {showPhoto && (
               <button
                 onClick={removePhoto}
@@ -230,14 +286,12 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
-        {/* Pre-filled banner */}
         {selectedFromSearch && !searchQuery && (
           <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 text-xs text-emerald-700 font-medium">
             ✓ Pre-filled from booking — review and edit below, then upload a photo
           </div>
         )}
 
-        {/* Search section - only when creating new */}
         {!isEdit && (
           <div className="mb-5 pb-5 border-b border-gray-100">
             <label className="label">Search existing bookings</label>
@@ -250,21 +304,15 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
             {searchQuery.trim().length > 0 && (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {suggestions.length === 0 ? (
-                  <div className="px-3 py-3 text-sm text-gray-400 bg-white">
-                    No matches for "{searchQuery}"
-                  </div>
+                  <div className="px-3 py-3 text-sm text-gray-400 bg-white">No matches for "{searchQuery}"</div>
                 ) : suggestions.map((b, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => selectSuggestion(b)}
+                  <button key={i} type="button" onClick={() => selectSuggestion(b)}
                     className="w-full flex items-center justify-between px-3 py-3 bg-white hover:bg-emerald-50 border-b border-gray-50 last:border-0 text-left transition-colors">
                     <div>
                       <div className="font-medium text-sm">{b.dog_names}</div>
                       <div className="text-xs text-gray-400">
                         👤 {(b.customer_name || '').toLowerCase() === 'imported' ? '⚠️ No owner name saved' : b.customer_name}
-                        · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
-                        · ${b.rate_per_dog_day}/day
+                        · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''} · ${b.rate_per_dog_day}/day
                       </div>
                     </div>
                     <span className="text-xs text-emerald-600 font-semibold ml-2 whitespace-nowrap">Use →</span>
@@ -275,7 +323,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         )}
 
-        {/* Form fields */}
         <div className="mb-4">
           <label className="label">Dog Name(s) *</label>
           <input className="input text-base sm:text-sm" value={form.dog_name} onChange={set('dog_name')} placeholder="e.g. Charlie or Mable & Piper" />
@@ -322,6 +369,58 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           )}
         </div>
       </div>
+
+      {/* Claim bookings popup */}
+      {showClaimPopup && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-base">Link bookings to {form.owner_name}?</h2>
+              <button onClick={skipClaim} className="text-gray-400 hover:text-gray-600 text-lg px-1">✕</button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">
+              We found <strong>{unclaimedBookings.length}</strong> booking{unclaimedBookings.length !== 1 ? 's' : ''} for <strong>{form.dog_name}</strong> with no owner name.
+              Check the ones that belong to <strong>{form.owner_name}</strong> — uncheck any that don't.
+            </p>
+            <div className="overflow-y-auto flex-1 border border-gray-100 rounded-lg mb-4">
+              {unclaimedBookings.map(b => (
+                <label key={b.id} className="flex items-start gap-3 px-3 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-0">
+                  <input
+                    type="checkbox"
+                    checked={b.checked}
+                    onChange={() => toggleBooking(b.id)}
+                    className="mt-0.5 w-4 h-4 accent-emerald-500"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{b.dog_names}</div>
+                    <div className="text-xs text-gray-400">
+                      {formatDate(b.arrival_date)} → {formatDate(b.departure_date)}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      Received: {formatCurrency(b.amount_received)} of {formatCurrency(b.total_revenue)}
+                    </div>
+                  </div>
+                  {b.checked
+                    ? <span className="text-xs text-emerald-600 font-medium whitespace-nowrap">✓ Karen's</span>
+                    : <span className="text-xs text-gray-400 whitespace-nowrap">Not Karen's</span>
+                  }
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                className="btn btn-primary flex-1 justify-center py-2.5"
+                onClick={confirmClaim}
+                disabled={claiming || unclaimedBookings.filter(b => b.checked).length === 0}>
+                {claiming ? 'Updating…' : `Link ${unclaimedBookings.filter(b => b.checked).length} booking${unclaimedBookings.filter(b => b.checked).length !== 1 ? 's' : ''}`}
+              </button>
+              <button className="btn flex-1 justify-center py-2.5" onClick={skipClaim}>
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   )
 }
