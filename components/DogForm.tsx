@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppShell from '@/components/AppShell'
 import { useRouter } from 'next/navigation'
@@ -186,7 +186,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
-        {/* Search section - only show when creating new */}
+        {/* Search section - only when creating new */}
         {!isEdit && (
           <div className="mb-5 pb-5 border-b border-gray-100">
             <label className="label">Search existing bookings</label>
@@ -196,34 +196,29 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
               onChange={e => { setSearchQuery(e.target.value); setSelectedFromSearch(false) }}
               placeholder={`Search ${allBookings.length} bookings by dog or owner name…`}
             />
-            {/* Always render results when query exists */}
             {searchQuery.trim().length > 0 && (
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 {suggestions.length === 0 ? (
                   <div className="px-3 py-3 text-sm text-gray-400 bg-white">
                     No matches for "{searchQuery}"
                   </div>
-                ) : (
-                  suggestions.map((b, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => selectSuggestion(b)}
-                      className="w-full flex items-center justify-between px-3 py-3 bg-white hover:bg-emerald-50 border-b border-gray-50 last:border-0 text-left transition-colors">
-                      <div>
-                        <div className="font-medium text-sm">{b.dog_names}</div>
-                        <div className="text-xs text-gray-400">
-                          👤 {(b.customer_name || '').toLowerCase() === 'imported'
-                            ? '⚠️ No owner name saved'
-                            : b.customer_name}
-                          · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
-                          · ${b.rate_per_dog_day}/day
-                        </div>
+                ) : suggestions.map((b, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => selectSuggestion(b)}
+                    className="w-full flex items-center justify-between px-3 py-3 bg-white hover:bg-emerald-50 border-b border-gray-50 last:border-0 text-left transition-colors">
+                    <div>
+                      <div className="font-medium text-sm">{b.dog_names}</div>
+                      <div className="text-xs text-gray-400">
+                        👤 {(b.customer_name || '').toLowerCase() === 'imported' ? '⚠️ No owner name saved' : b.customer_name}
+                        · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
+                        · ${b.rate_per_dog_day}/day
                       </div>
-                      <span className="text-xs text-emerald-600 font-semibold ml-2 whitespace-nowrap">Use →</span>
-                    </button>
-                  ))
-                )}
+                    </div>
+                    <span className="text-xs text-emerald-600 font-semibold ml-2 whitespace-nowrap">Use →</span>
+                  </button>
+                ))}
               </div>
             )}
             {selectedFromSearch && (
