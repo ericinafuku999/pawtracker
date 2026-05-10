@@ -27,13 +27,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   if (pathname === '/login') return <>{children}</>
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-gray-400 text-sm">Loading…</div></div>
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-gray-400 text-sm">Loading…</div>
+    </div>
+  )
+
   if (!authed) return null
 
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto p-6 bg-gray-50">{children}</main>
+      {/* Add top padding on mobile for the fixed header bar */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 pt-16 md:pt-6">
+        {children}
+      </main>
     </div>
   )
 }

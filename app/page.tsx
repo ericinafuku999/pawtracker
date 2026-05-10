@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Booking, Expense } from '@/lib/types'
-import { formatCurrency, monthLabel } from '@/lib/utils'
+import { formatCurrency, monthLabel, formatDate } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
@@ -14,6 +14,11 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 function getDepMonthKey(b: Booking) { return b.departure_date.substr(0, 7) }
+
+function parseLocalDate(s: string) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
 
 function filterBookings(bookings: Booking[], period: Period, pickedMonth: string, customStart: string, customEnd: string) {
   const now = new Date()
@@ -28,8 +33,8 @@ function filterBookings(bookings: Booking[], period: Period, pickedMonth: string
     if (period === 'pick') return depMonth === pickedMonth
     if (period === 'custom') {
       if (!customStart || !customEnd) return false
-      const dep = new Date(b.departure_date)
-      return dep >= new Date(customStart) && dep <= new Date(customEnd)
+      const dep = parseLocalDate(b.departure_date)
+      return dep >= parseLocalDate(customStart) && dep <= parseLocalDate(customEnd)
     }
     if (period === 'month') return depMonth === nowMonth
     if (period === 'quarter') return Math.floor((m - 1) / 3) === nowQuarter && y === nowYear
@@ -49,9 +54,17 @@ function getMonthRevenue(bookings: Booking[]) {
   return monthMap
 }
 
+interface DogProfile {
+  id: string
+  dog_name: string
+  owner_name: string
+  photo_url: string | null
+}
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [dogProfiles, setDogProfiles] = useState<DogProfile[]>([])
   const [period, setPeriod] = useState<Period>('month')
   const [pickedMonth, setPickedMonth] = useState(getMonthKey(new Date()))
   const [customStart, setCustomStart] = useState('')
@@ -63,29 +76,69 @@ export default function Dashboard() {
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: bks }, { data: exps }] = await Promise.all([
+    const [{ data: bks }, { data: exps }, { data: dogs }] = await Promise.all([
       supabase.from('bookings').select('*').eq('user_id', user.id),
       supabase.from('expenses').select('*').eq('user_id', user.id),
+      supabase.from('dogs').select('id, dog_name, owner_name, photo_url').eq('user_id', user.id),
     ])
     setBookings(bks || [])
     setExpenses(exps || [])
+    setDogProfiles(dogs || [])
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
+  const arrivingToday = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === todayStr)
+  const departingToday = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === todayStr)
+  const currentlyHere = bookings.filter(b => {
+    if (b.status === 'cancelled') return false
+    const arr = parseLocalDate(b.arrival_date)
+    const dep = parseLocalDate(b.departure_date)
+    return arr <= today && dep > today
+  })
+
+  function getDogPhoto(dogName: string) {
+    const profile = dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
+      dogName.toLowerCase().includes(d.dog_name.toLowerCase())
+    )
+    return profile?.photo_url || null
+  }
+
+  function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
+    const photo = getDogPhoto(booking.dog_names)
+    return (
+      <div className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100">
+          {photo
+            ? <img src={photo} alt={booking.dog_names} className="w-full h-full object-cover" />
+            : <span className="text-xl">🐾</span>
+          }
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm truncate">{booking.dog_names}</div>
+          <div className="text-xs text-gray-500 truncate">👤 {booking.customer_name}</div>
+          {showDates && (
+            <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>
+          )}
+        </div>
+        <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
+      </div>
+    )
+  }
+
+  const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
   const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
   const venmo = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const totalReceived = rover + venmo
-
   const expectedRover = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
   const expectedVenmo = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
   const expectedRevenue = expectedRover + expectedVenmo
-
   const projectedTotal = bks.reduce((s, b) => s + b.amount_received, 0)
-
   const cancelled = bookings.filter(b => b.status === 'cancelled')
   const lostRev = cancelled.reduce((s, b) => s + b.total_revenue, 0)
   const dogDays = bks.reduce((s, b) => s + b.dog_days, 0)
@@ -132,11 +185,51 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500">Cash flow and performance overview</p>
       </div>
 
+      {/* TODAY WIDGET */}
+      {(arrivingToday.length > 0 || departingToday.length > 0 || currentlyHere.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+          <div className="card border-emerald-200 bg-emerald-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🟢</span>
+              <div className="font-semibold text-sm text-emerald-800">Arriving Today</div>
+              <span className="badge bg-emerald-200 text-emerald-800 ml-auto">{arrivingToday.length}</span>
+            </div>
+            {arrivingToday.length === 0
+              ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
+              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-red-200 bg-red-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🔴</span>
+              <div className="font-semibold text-sm text-red-800">Departing Today</div>
+              <span className="badge bg-red-200 text-red-800 ml-auto">{departingToday.length}</span>
+            </div>
+            {departingToday.length === 0
+              ? <div className="text-xs text-red-500 text-center py-2">None today</div>
+              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-blue-200 bg-blue-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🏠</span>
+              <div className="font-semibold text-sm text-blue-800">Currently Here</div>
+              <span className="badge bg-blue-200 text-blue-800 ml-auto">{currentlyHere.length}</span>
+            </div>
+            {currentlyHere.length === 0
+              ? <div className="text-xs text-blue-500 text-center py-2">No guests right now</div>
+              : <div className="space-y-2 max-h-48 overflow-y-auto">{currentlyHere.map(b => <DogCard key={b.id} booking={b} showDates />)}</div>
+            }
+          </div>
+        </div>
+      )}
+
+      {/* Period filter */}
       <div className="flex flex-wrap items-center gap-2 mb-5">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+        <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg">
           {periods.map(p => (
             <button key={p.k} onClick={() => setPeriod(p.k)}
-              className={`px-3 py-1 rounded-md text-sm transition-colors ${period === p.k ? 'bg-white font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+              className={`px-2 md:px-3 py-1 rounded-md text-xs md:text-sm transition-colors ${period === p.k ? 'bg-white font-medium shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
               {p.label}
             </button>
           ))}
@@ -145,7 +238,7 @@ export default function Dashboard() {
           <input type="month" value={pickedMonth} onChange={e => setPickedMonth(e.target.value)} className="input w-auto text-sm" />
         )}
         {period === 'custom' && (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="input w-auto text-sm" />
             <span className="text-gray-400 text-sm">to</span>
             <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="input w-auto text-sm" />
@@ -153,23 +246,25 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      {/* Metrics — 2 cols on mobile, 4 on desktop */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {metrics.map(m => (
           <div key={m.label} className="metric-card">
             <div className="text-xs text-gray-400 mb-1">{m.label}</div>
-            <div className={`text-xl font-semibold ${m.color || ''}`}>{m.value}</div>
-            {m.sub && <div className="text-xs text-gray-400 mt-0.5">{m.sub}</div>}
+            <div className={`text-lg md:text-xl font-semibold ${m.color || ''}`}>{m.value}</div>
+            {m.sub && <div className="text-xs text-gray-400 mt-0.5 hidden md:block">{m.sub}</div>}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-4">
+      {/* Charts — stack on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="card">
           <div className="font-medium text-sm mb-3">Revenue Received by Month</div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={chartData}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => '$' + v} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => '$' + v} />
               <Tooltip formatter={(v: number) => formatCurrency(v)} />
               <Bar dataKey="Rover" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
               <Bar dataKey="Venmo" stackId="a" fill="#f59e0b" radius={[3, 3, 0, 0]} />
@@ -192,22 +287,24 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Calendar */}
       <div className="card mb-4">
-        <div className="flex justify-between items-center mb-3">
+        <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
           <div className="font-medium text-sm">Booking Calendar</div>
           <div className="flex items-center gap-2">
             <div className="relative">
-              <input className="input text-xs pl-7 w-48" placeholder="Search dog or customer…" value={calSearch} onChange={e => setCalSearch(e.target.value)} />
+              <input className="input text-xs pl-7 w-40 md:w-48" placeholder="Search dog or customer…" value={calSearch} onChange={e => setCalSearch(e.target.value)} />
               <span className="absolute left-2 top-2 text-gray-400 text-xs">🔍</span>
             </div>
             {calSearch && <button className="btn text-xs" onClick={() => setCalSearch('')}>Clear</button>}
-            <Link href="/bookings" className="text-xs text-emerald-600">View all →</Link>
+            <Link href="/bookings" className="text-xs text-emerald-600 whitespace-nowrap">View all →</Link>
           </div>
         </div>
         <BookingCalendar bookings={bookings} searchQuery={calSearch} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      {/* Recent bookings + expenses — stack on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
           <div className="flex justify-between items-center mb-3">
             <div className="font-medium text-sm">Recent Bookings</div>

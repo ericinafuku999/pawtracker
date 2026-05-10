@@ -98,20 +98,22 @@ function BookingsContent() {
     <AppShell>
       <div className="flex justify-between items-start mb-5">
         <div><h1 className="text-xl font-semibold">Bookings</h1><p className="text-sm text-gray-500">All dog care appointments</p></div>
-        <Link href="/bookings/new" className="btn btn-primary">+ New Booking</Link>
+        <Link href="/bookings/new" className="btn btn-primary text-xs md:text-sm">+ New</Link>
       </div>
 
+      {/* Search */}
       <div className="flex gap-2 mb-4 items-center">
         <div className="relative flex-1 max-w-xs">
-          <input className="input w-full pl-8 text-sm" placeholder="Search by customer or dog name…" value={search} onChange={e => setSearch(e.target.value)} />
+          <input className="input w-full pl-8 text-sm" placeholder="Search by dog or owner…" value={search} onChange={e => setSearch(e.target.value)} />
           <span className="absolute left-2.5 top-2.5 text-gray-400 text-xs">🔍</span>
         </div>
         {search && <button className="btn text-xs" onClick={() => setSearch('')}>Clear</button>}
       </div>
 
+      {/* View toggle */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit mb-5">
-        <button onClick={() => switchView('calendar')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>📅 Calendar</button>
-        <button onClick={() => switchView('list')} className={`px-3 py-1 rounded-md text-sm transition-colors ${view === 'list' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>☰ List</button>
+        <button onClick={() => switchView('calendar')} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === 'calendar' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>📅 Calendar</button>
+        <button onClick={() => switchView('list')} className={`px-3 py-1.5 rounded-md text-sm transition-colors ${view === 'list' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>☰ List</button>
       </div>
 
       {view === 'calendar' ? (
@@ -120,11 +122,12 @@ function BookingsContent() {
         </div>
       ) : (
         <>
+          {/* Filters — wrap on mobile */}
           <div className="flex gap-2 flex-wrap mb-4">
             <select className="input w-auto text-xs" onChange={sf('status')}><option value="">All Statuses</option><option>active</option><option>completed</option><option>cancelled</option></select>
             <select className="input w-auto text-xs" onChange={sf('payType')}><option value="">All Payment</option><option>Rover</option><option>Venmo</option></select>
             <select className="input w-auto text-xs" onChange={sf('payStatus')}><option value="">All Pay Status</option><option>paid</option><option>partially paid</option><option>unpaid</option></select>
-            <button className="btn text-xs" onClick={exportCSV}>↓ Export CSV</button>
+            <button className="btn text-xs" onClick={exportCSV}>↓ CSV</button>
           </div>
 
           <div ref={tableRef}>
@@ -135,22 +138,50 @@ function BookingsContent() {
             ) : sortedMonths.map(mk => {
               const monthBookings = grouped[mk]
               const [y, m] = mk.split('-').map(Number)
-const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+              const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
               const monthReceived = monthBookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((s, b) => s + b.amount_received, 0)
               const monthProjected = monthBookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + b.amount_received, 0)
 
               return (
                 <div key={mk} className="mb-4">
-                  <div className="flex items-center justify-between mb-2 px-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1 mb-2 px-1">
                     <h2 className="font-semibold text-sm text-gray-700">{label}</h2>
-                    <div className="flex gap-3 text-xs text-gray-500">
+                    <div className="flex gap-2 text-xs text-gray-500">
                       <span>Received: <strong className="text-emerald-600">${monthReceived.toFixed(2)}</strong></span>
                       <span>Projected: <strong>${monthProjected.toFixed(2)}</strong></span>
-                      <span>{monthBookings.length} booking{monthBookings.length !== 1 ? 's' : ''}</span>
+                      <span>{monthBookings.length} bookings</span>
                     </div>
                   </div>
                   <div className="card p-0 overflow-hidden">
-                    <div className="overflow-x-auto">
+                    {/* Mobile: card-style list */}
+                    <div className="md:hidden divide-y divide-gray-50">
+                      {monthBookings.map(b => (
+                        <div key={b.id} className="p-3">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div>
+                              <div className="font-medium text-sm">{b.dog_names || b.customer_name}</div>
+                              <div className="text-xs text-gray-500">{b.customer_name}</div>
+                            </div>
+                            <div className="flex gap-1 flex-shrink-0">
+                              {sBadge(b.status)}
+                              {pBadge(b.payment_status)}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
+                            <span>{formatDate(b.arrival_date)} → {formatDate(b.departure_date)}</span>
+                            <span className="font-semibold text-gray-700">${b.amount_received.toFixed(2)} received</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button className="btn text-xs py-1.5 flex-1 justify-center" onClick={() => handleEdit(b.id)}>Edit</button>
+                            {b.status !== 'cancelled' && (
+                              <button className="btn btn-danger text-xs py-1.5 flex-1 justify-center" onClick={() => setCancelId(b.id)}>Cancel</button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Desktop: table */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full">
                         <thead><tr>
                           <th className="th">Customer</th><th className="th">Dogs</th><th className="th">Arrival</th>
@@ -194,8 +225,8 @@ const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', yea
       )}
 
       {cancelId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="card w-96">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-sm">
             <div className="flex justify-between items-center mb-4">
               <h2 className="font-semibold">Cancel Booking</h2>
               <button onClick={() => setCancelId(null)} className="btn py-1 px-2">✕</button>
@@ -205,8 +236,8 @@ const label = new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', yea
               <textarea className="input" rows={3} value={cancelReason} onChange={e => setCancelReason(e.target.value)} placeholder="e.g. Dog got sick…" />
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-danger" onClick={confirmCancel}>Cancel This Booking</button>
-              <button className="btn" onClick={() => setCancelId(null)}>Keep Active</button>
+              <button className="btn btn-danger flex-1 justify-center" onClick={confirmCancel}>Cancel Booking</button>
+              <button className="btn flex-1 justify-center" onClick={() => setCancelId(null)}>Keep Active</button>
             </div>
           </div>
         </div>

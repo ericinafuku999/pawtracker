@@ -133,23 +133,23 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
     <div>
       {/* Alert banners */}
       {overbookedDays.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
-          <span className="text-lg">🚨</span>
-          <span className="font-semibold text-red-700 text-sm">Overbooked! </span>
-          <span className="text-red-600 text-sm">8+ dogs on: {overbookedDays.map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(', ')}</span>
+        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
+          <span>🚨</span>
+          <span className="font-semibold text-red-700 text-xs md:text-sm">Overbooked! </span>
+          <span className="text-red-600 text-xs md:text-sm">{overbookedDays.map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(', ')}</span>
         </div>
       )}
       {warningDays.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 mb-3 flex items-center gap-2">
-          <span className="text-lg">⚠️</span>
-          <span className="font-semibold text-amber-700 text-sm">Near capacity: </span>
-          <span className="text-amber-600 text-sm">5+ dogs on: {warningDays.map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(', ')}</span>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
+          <span>⚠️</span>
+          <span className="font-semibold text-amber-700 text-xs md:text-sm">Near capacity: </span>
+          <span className="text-amber-600 text-xs md:text-sm">{warningDays.map(d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })).join(', ')}</span>
         </div>
       )}
 
-      {/* Search results summary */}
+      {/* Search results */}
       {hasSearch && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-2 mb-3">
+        <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">
           {matchedBookings.length === 0 ? (
             <span className="text-sm text-gray-500">No bookings found for "{searchQuery}"</span>
           ) : (
@@ -168,29 +168,32 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <button onClick={prev} className="btn py-1 px-2 text-xs">‹</button>
-          <button onClick={goToday} className="btn py-1 px-2 text-xs">Today</button>
-          <button onClick={next} className="btn py-1 px-2 text-xs">›</button>
-          <span className="font-medium text-sm ml-1">{view === 'month' ? monthName : weekRange}</span>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1 md:gap-2">
+          <button onClick={prev} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-sm">‹</button>
+          <button onClick={goToday} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-xs">Today</button>
+          <button onClick={next} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-sm">›</button>
+          <span className="font-medium text-xs md:text-sm ml-1">{view === 'month' ? monthName : weekRange}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span> 5+ dogs</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block"></span> 8+ dogs</span>
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span> 5+</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block"></span> 8+</span>
           </div>
           <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-            <button onClick={() => { setView('month'); setSelectedDay(null) }} className={`px-3 py-1 rounded-md text-xs transition-colors ${view === 'month' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Month</button>
-            <button onClick={() => { setView('week'); setSelectedDay(null) }} className={`px-3 py-1 rounded-md text-xs transition-colors ${view === 'week' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Week</button>
+            <button onClick={() => { setView('month'); setSelectedDay(null) }} className={`px-2 md:px-3 py-1 rounded-md text-xs transition-colors ${view === 'month' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Month</button>
+            <button onClick={() => { setView('week'); setSelectedDay(null) }} className={`px-2 md:px-3 py-1 rounded-md text-xs transition-colors ${view === 'week' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Week</button>
           </div>
         </div>
       </div>
 
-      {/* Day headers */}
+      {/* Day headers — abbreviated on mobile */}
       <div className="grid grid-cols-7 mb-1">
+        {['S','M','T','W','T','F','S'].map((d, i) => (
+          <div key={i} className="text-center text-xs font-medium text-gray-400 py-1 md:hidden">{d}</div>
+        ))}
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-          <div key={d} className="text-center text-xs font-medium text-gray-400 py-1">{d}</div>
+          <div key={d} className="text-center text-xs font-medium text-gray-400 py-1 hidden md:block">{d}</div>
         ))}
       </div>
 
@@ -211,35 +214,36 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
               return (
                 <div key={i}
                   onClick={() => handleDayClick(day)}
-                  className={`${view === 'month' ? 'min-h-[90px]' : 'min-h-[130px]'} border p-1 cursor-pointer transition-all
+                  className={`min-h-[60px] md:min-h-[90px] border p-0.5 md:p-1 cursor-pointer transition-all
                     ${isSelected ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
                       hasMatch ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200' :
-                      isOverbooked ? 'border-red-200 bg-red-50 hover:bg-red-100' :
-                      isWarning ? 'border-amber-200 bg-amber-50 hover:bg-amber-100' :
+                      isOverbooked ? 'border-red-200 bg-red-50' :
+                      isWarning ? 'border-amber-200 bg-amber-50' :
                       isCurrentMonth ? 'border-gray-100 bg-white hover:bg-gray-50' : 'border-gray-100 bg-gray-50'}
                     ${hasSearch && !hasMatch ? 'opacity-40' : ''}`}>
                   <div className="flex items-center justify-between mb-0.5">
-                    <div className={`text-xs w-6 h-6 flex items-center justify-center rounded-full font-medium
+                    <div className={`text-xs w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full font-medium
                       ${isToday ? 'bg-emerald-500 text-white' : isCurrentMonth ? 'text-gray-700' : 'text-gray-300'}`}>
                       {day.getDate()}
                     </div>
                     <DogCapacityBadge count={dogCount} />
                   </div>
                   <div className="space-y-0.5">
-                    {dayBookings.slice(0, compact ? 1 : 2).map(b => {
+                    {dayBookings.slice(0, compact ? 1 : 1).map(b => {
                       const isMatch = hasSearch && matchedIds.has(b.id)
                       const isNotMatch = hasSearch && !matchedIds.has(b.id)
                       return (
-                        <div key={b.id} className={`text-xs px-1 py-0.5 rounded border truncate transition-all
-                          ${isMatch ? 'ring-2 ring-emerald-400 font-bold shadow-sm ' + colorMap[b.id] :
+                        <div key={b.id} className={`text-xs px-0.5 md:px-1 py-0.5 rounded border truncate transition-all
+                          ${isMatch ? 'ring-1 ring-emerald-400 font-bold ' + colorMap[b.id] :
                             isNotMatch ? 'opacity-30 ' + colorMap[b.id] :
                             colorMap[b.id]}`}>
-                          {isMatch && '★ '}{displayName(b)}
+                          <span className="hidden md:inline">{isMatch && '★ '}{displayName(b)}</span>
+                          <span className="md:hidden">{displayName(b).split(' ')[0]}</span>
                         </div>
                       )
                     })}
-                    {dayBookings.length > (compact ? 1 : 2) && (
-                      <div className="text-xs text-gray-400 pl-1">+{dayBookings.length - (compact ? 1 : 2)} more</div>
+                    {dayBookings.length > 1 && (
+                      <div className="text-xs text-gray-400 pl-0.5">+{dayBookings.length - 1}</div>
                     )}
                   </div>
                 </div>
@@ -247,16 +251,16 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
             })}
           </div>
 
-          {/* Inline day detail panel */}
+          {/* Day detail panel */}
           {selectedDay && selectedRowIndex === rowIdx && (
             <div className="border border-emerald-200 rounded-xl bg-white shadow-sm overflow-hidden mb-1">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-sm">
-                    {selectedDay.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <span className="font-semibold text-xs md:text-sm">
+                    {selectedDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
-                  <span className={`badge ${selectedDogCount >= 8 ? 'bg-red-100 text-red-700' : selectedDogCount >= 5 ? 'bg-amber-100 text-amber-700' : 'badge-green'}`}>
-                    {selectedDogCount} dog{selectedDogCount !== 1 ? 's' : ''} in care
+                  <span className={`badge text-xs ${selectedDogCount >= 8 ? 'bg-red-100 text-red-700' : selectedDogCount >= 5 ? 'bg-amber-100 text-amber-700' : 'badge-green'}`}>
+                    {selectedDogCount} 🐾
                   </span>
                 </div>
                 <button onClick={() => setSelectedDay(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">✕</button>
@@ -268,23 +272,23 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
                     return (
-                      <div key={b.id} className={`flex items-start justify-between px-4 py-3 border-b border-gray-50 last:border-0 ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
-                        <div className="flex items-start gap-3">
-                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 ${colorMap[b.id]}`}></div>
-                          <div>
-                            <div className="font-medium text-sm">{isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}</div>
-                            <div className="text-xs text-gray-500 mt-0.5">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {b.dog_days} dog-days · {formatCurrency(b.total_revenue)}</div>
-                            <div className="flex items-center gap-1.5 mt-1">
-                              <span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
-                              <span className={`badge ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
-                              <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
+                      <div key={b.id} className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0 ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                        <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
+                          <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${colorMap[b.id]}`}></div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">{isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}</div>
+                            <div className="text-xs text-gray-500 truncate">👤 {b.customer_name}</div>
+                            <div className="text-xs text-gray-400">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}</div>
+                            <div className="flex items-center gap-1 mt-1 flex-wrap">
+                              <span className={`badge text-xs ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
+                              <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
+                              <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                          <button onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1 px-2">Edit</button>
-                          <button onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1 px-2">Delete</button>
+                        <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
+                          <button onClick={(e) => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }} className="btn text-xs py-1.5 px-2 md:py-1">Edit</button>
+                          <button onClick={(e) => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
                         </div>
                       </div>
                     )
@@ -296,9 +300,9 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       ))}
 
-      {/* Legend */}
+      {/* Legend — hidden on mobile to save space */}
       {activeBookings.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 hidden md:flex flex-wrap gap-2">
           {activeBookings.slice(0, 8).map((b, i) => {
             const isMatch = hasSearch && matchedIds.has(b.id)
             const isNotMatch = hasSearch && !matchedIds.has(b.id)
