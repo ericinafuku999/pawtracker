@@ -102,16 +102,12 @@ export default function Dashboard() {
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-
     const pending = (bks || []).filter(b => {
       if (b.status === 'cancelled') return false
       const dep = parseLocalDate(b.departure_date)
       if (dep >= today) return false
-      const needsStatusUpdate = b.status === 'active'
-      const needsPaymentUpdate = b.payment_status !== 'paid'
-      return needsStatusUpdate || needsPaymentUpdate
+      return b.status === 'active' || b.payment_status !== 'paid'
     })
-
     if (pending.length > 0) {
       setPendingItems(pending.map(b => ({
         booking: b,
@@ -166,6 +162,7 @@ export default function Dashboard() {
   }
 
   const today = new Date()
+  today.setHours(0, 0, 0, 0)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -174,6 +171,7 @@ export default function Dashboard() {
   const arrivingToday = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === todayStr)
   const arrivingTomorrow = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === tomorrowStr)
   const departingToday = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === todayStr)
+  const departingTomorrow = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === tomorrowStr)
   const currentlyHere = bookings.filter(b => {
     if (b.status === 'cancelled') return false
     const arr = parseLocalDate(b.arrival_date)
@@ -203,6 +201,7 @@ export default function Dashboard() {
     ) || null
   }
 
+  // Compact dog card for the today widget
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const profile = getProfile(booking)
     function handleTileClick() { router.push(`/bookings/${booking.id}`) }
@@ -212,26 +211,56 @@ export default function Dashboard() {
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
     return (
-      <div onClick={handleTileClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
-        <div onClick={handlePhotoClick} className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
+      <div onClick={handleTileClick} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-sm transition-all cursor-pointer group">
+        <div onClick={handlePhotoClick} className="w-9 h-9 rounded-lg overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
           {profile?.photo_url
             ? <img src={profile.photo_url} alt={booking.dog_names} className="w-full h-full object-cover" />
-            : <span className="text-xl">🐾</span>
+            : <span className="text-base">🐾</span>
           }
-          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+          <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center rounded-lg">
             <span className="text-white text-xs font-bold">{profile ? '👤' : '+'}</span>
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate">{booking.dog_names}</div>
-          <div className="text-xs text-gray-500 truncate">👤 {booking.customer_name}</div>
-          {showDates && <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>}
-          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">Edit booking →</div>
+          <div className="font-semibold text-xs truncate">{booking.dog_names}</div>
+          <div className="text-xs text-gray-400 truncate">{booking.customer_name}</div>
+          {showDates && <div className="text-xs text-gray-300">→ {formatDate(booking.departure_date)}</div>}
         </div>
-        <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
+        <span className={`badge text-xs flex-shrink-0 ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
     )
   }
+
+  // Widget card component for clean reuse
+  function TodayCard({
+    icon, title, color, badgeColor, count, children, emptyText, emptyColor
+  }: {
+    icon: string
+    title: string
+    color: string
+    badgeColor: string
+    count: number
+    children: React.ReactNode
+    emptyText: string
+    emptyColor: string
+  }) {
+    return (
+      <div className={`rounded-xl border p-3 ${color}`}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">{icon}</span>
+          <div className={`font-semibold text-xs uppercase tracking-wide`}>{title}</div>
+          <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{count}</span>
+        </div>
+        {count === 0
+          ? <div className={`text-xs text-center py-2 ${emptyColor}`}>{emptyText}</div>
+          : <div className="space-y-1.5">{children}</div>
+        }
+      </div>
+    )
+  }
+
+  const showTodayWidget = arrivingToday.length > 0 || arrivingTomorrow.length > 0 ||
+    departingToday.length > 0 || departingTomorrow.length > 0 || currentlyHere.length > 0
 
   const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
   const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
@@ -325,8 +354,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                       {needsPayment && (
-                        <button
-                          onClick={() => markOnePaid(item.booking.id)}
+                        <button onClick={() => markOnePaid(item.booking.id)}
                           className="btn text-xs py-1.5 px-3 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 whitespace-nowrap flex-shrink-0">
                           ✓ Mark Paid
                         </button>
@@ -391,38 +419,36 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="mb-5">
+      <div className="mb-4">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-gray-500">Cash flow and performance overview</p>
       </div>
 
       {/* Persistent unpaid banner */}
       {persistentUnpaid.length > 0 && (
-        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div className="flex items-center justify-between mb-3">
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-lg">⚠️</span>
+              <span>⚠️</span>
               <div>
                 <div className="font-semibold text-sm text-amber-800">{persistentUnpaid.length} Unpaid Booking{persistentUnpaid.length !== 1 ? 's' : ''}</div>
-                <div className="text-xs text-amber-600">{formatCurrency(totalOwed)} still outstanding</div>
+                <div className="text-xs text-amber-600">{formatCurrency(totalOwed)} outstanding</div>
               </div>
             </div>
             <button onClick={() => setShowPending(true)} className="btn text-xs bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200">
               Update All
             </button>
           </div>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {persistentUnpaid.slice(0, 3).map(b => (
               <div key={b.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
                 <div className="min-w-0 flex-1">
                   <span className="font-medium text-sm">{b.dog_names}</span>
-                  <span className="text-xs text-gray-500 ml-2 hidden sm:inline">· {b.customer_name} · departed {formatDate(b.departure_date)}</span>
+                  <span className="text-xs text-gray-400 ml-2 hidden sm:inline">· {b.customer_name} · {formatDate(b.departure_date)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <span className="text-xs text-amber-700 font-medium">{formatCurrency(b.total_revenue - b.amount_received)} owed</span>
-                  <button onClick={() => markOnePaid(b.id)} className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                    ✓ Paid
-                  </button>
+                  <button onClick={() => markOnePaid(b.id)} className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200">✓ Paid</button>
                 </div>
               </div>
             ))}
@@ -435,58 +461,60 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* TODAY WIDGET */}
-      {(arrivingToday.length > 0 || arrivingTomorrow.length > 0 || departingToday.length > 0 || currentlyHere.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-          <div className="card border-emerald-200 bg-emerald-50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🟢</span>
-              <div className="font-semibold text-sm text-emerald-800">Arriving Today</div>
-              <span className="badge bg-emerald-200 text-emerald-800 ml-auto">{arrivingToday.length}</span>
-            </div>
-            {arrivingToday.length === 0
-              ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
-              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
-            }
+      {/* TODAY WIDGET — 2 columns on mobile, 3 on tablet, 5 on desktop */}
+      {showTodayWidget && (
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-semibold text-sm text-gray-700">Today & Tomorrow</div>
+            <div className="text-xs text-gray-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
           </div>
-          <div className="card border-teal-200 bg-teal-50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🌅</span>
-              <div className="font-semibold text-sm text-teal-800">Arriving Tomorrow</div>
-              <span className="badge bg-teal-200 text-teal-800 ml-auto">{arrivingTomorrow.length}</span>
-            </div>
-            {arrivingTomorrow.length === 0
-              ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
-            }
-          </div>
-          <div className="card border-red-200 bg-red-50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🔴</span>
-              <div className="font-semibold text-sm text-red-800">Departing Today</div>
-              <span className="badge bg-red-200 text-red-800 ml-auto">{departingToday.length}</span>
-            </div>
-            {departingToday.length === 0
-              ? <div className="text-xs text-red-500 text-center py-2">None today</div>
-              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
-            }
-          </div>
-          <div className="card border-blue-200 bg-blue-50">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🏠</span>
-              <div className="font-semibold text-sm text-blue-800">Currently Here</div>
-              <span className="badge bg-blue-200 text-blue-800 ml-auto">{currentlyHere.length}</span>
-            </div>
-            {currentlyHere.length === 0
-              ? <div className="text-xs text-blue-500 text-center py-2">No guests right now</div>
-              : <div className="space-y-2 max-h-48 overflow-y-auto">{currentlyHere.map(b => <DogCard key={b.id} booking={b} showDates />)}</div>
-            }
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+            <TodayCard
+              icon="🟢" title="Arriving Today"
+              color="bg-emerald-50 border-emerald-200"
+              badgeColor="bg-emerald-200 text-emerald-800"
+              count={arrivingToday.length}
+              emptyText="None today" emptyColor="text-emerald-500">
+              {arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}
+            </TodayCard>
+            <TodayCard
+              icon="🌅" title="Arriving Tomorrow"
+              color="bg-teal-50 border-teal-200"
+              badgeColor="bg-teal-200 text-teal-800"
+              count={arrivingTomorrow.length}
+              emptyText="None tomorrow" emptyColor="text-teal-500">
+              {arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}
+            </TodayCard>
+            <TodayCard
+              icon="🔴" title="Departing Today"
+              color="bg-red-50 border-red-200"
+              badgeColor="bg-red-200 text-red-800"
+              count={departingToday.length}
+              emptyText="None today" emptyColor="text-red-400">
+              {departingToday.map(b => <DogCard key={b.id} booking={b} />)}
+            </TodayCard>
+            <TodayCard
+              icon="🌇" title="Leaving Tomorrow"
+              color="bg-orange-50 border-orange-200"
+              badgeColor="bg-orange-200 text-orange-800"
+              count={departingTomorrow.length}
+              emptyText="None tomorrow" emptyColor="text-orange-400">
+              {departingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}
+            </TodayCard>
+            <TodayCard
+              icon="🏠" title="Currently Here"
+              color="bg-blue-50 border-blue-200"
+              badgeColor="bg-blue-200 text-blue-800"
+              count={currentlyHere.length}
+              emptyText="No guests" emptyColor="text-blue-400">
+              {currentlyHere.map(b => <DogCard key={b.id} booking={b} showDates />)}
+            </TodayCard>
           </div>
         </div>
       )}
 
       {/* Period filter */}
-      <div className="flex flex-wrap items-center gap-2 mb-5">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <div className="flex flex-wrap gap-1 bg-gray-100 p-1 rounded-lg">
           {periods.map(p => (
             <button key={p.k} onClick={() => setPeriod(p.k)}
@@ -508,7 +536,7 @@ export default function Dashboard() {
       </div>
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
         {metrics.map(m => (
           <div key={m.label} className="metric-card">
             <div className="text-xs text-gray-400 mb-1">{m.label}</div>
