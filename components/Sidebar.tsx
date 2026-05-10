@@ -13,6 +13,7 @@ const navItems = [
   { section: 'Bookings', items: [
     { href: '/bookings', label: 'All Bookings', icon: '📅' },
     { href: '/bookings/new', label: 'Add Booking', icon: '+' },
+    { href: '/bookings/quick', label: 'Quick Add', icon: '⚡' },
   ]},
   { section: 'Dogs & Customers', items: [
     { href: '/dogs', label: 'Dog Profiles', icon: '🐾' },
@@ -91,13 +92,17 @@ export default function Sidebar() {
       {/* Mobile header bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
         <Link href="/" className="font-semibold text-base hover:opacity-80 transition-opacity">🐾 PawTracker</Link>
-        <button onClick={() => setOpen(!open)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          {open ? (
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          ) : (
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Quick add button always visible on mobile */}
+          <Link href="/bookings/quick" className="btn btn-primary text-xs py-1.5 px-3">⚡ Quick Add</Link>
+          <button onClick={() => setOpen(!open)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+            {open ? (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Mobile overlay */}

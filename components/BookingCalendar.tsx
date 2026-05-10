@@ -112,6 +112,21 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
     router.push(`/bookings/${bookingId}`)
   }
 
+  async function markPaid(e: React.MouseEvent, booking: Booking) {
+    e.stopPropagation()
+    await supabase.from('bookings').update({
+      payment_status: 'paid',
+      amount_received: booking.total_revenue,
+      updated_at: new Date().toISOString()
+    }).eq('id', booking.id)
+    setLocalBookings(prev => prev.map(b =>
+      b.id === booking.id
+        ? { ...b, payment_status: 'paid', amount_received: booking.total_revenue }
+        : b
+    ))
+    if (onRefresh) onRefresh()
+  }
+
   async function deleteBooking(id: string) {
     if (!confirm('Permanently delete this booking? This cannot be undone.')) return
     await supabase.from('bookings').delete().eq('id', id)
@@ -333,7 +348,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <span className="font-semibold text-sm truncate">
                                 {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
                               </span>
@@ -347,7 +362,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
-                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Photo → profile · Edit → booking</div>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
@@ -356,6 +370,13 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             className="btn text-xs py-1.5 px-2 md:py-1">
                             Edit
                           </button>
+                          {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
+                            <button
+                              onClick={e => markPaid(e, b)}
+                              className="btn text-xs py-1.5 px-2 md:py-1 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                              ✓ Paid
+                            </button>
+                          )}
                           <button
                             onClick={e => { e.stopPropagation(); deleteBooking(b.id) }}
                             className="btn btn-danger text-xs py-1.5 px-2 md:py-1">
