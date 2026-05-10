@@ -38,38 +38,34 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return
-      supabase.from('bookings')
+    async function loadBookings() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data, error } = await supabase
+        .from('bookings')
         .select('dog_names, customer_name, number_of_dogs, rate_per_dog_day')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .neq('status', 'cancelled')
-        .order('customer_name')
-        .then(({ data }) => {
-          if (!data) return
-          // Keep all bookings with valid dog names
-          // Deduplicate only by exact dog_names + customer_name combo
-          const seen = new Set<string>()
-          const unique = data.filter(b => {
-            const dogKey = (b.dog_names || '').trim()
-            const ownerKey = (b.customer_name || '').trim()
-            if (!dogKey) return false
-            const key = `${dogKey}|||${ownerKey}`
-            if (seen.has(key)) return false
-            seen.add(key)
-            return true
-          })
-          // Sort: real customer names first, Imported last
-          unique.sort((a, b) => {
-            const aImp = (a.customer_name || '').toLowerCase() === 'imported'
-            const bImp = (b.customer_name || '').toLowerCase() === 'imported'
-            if (aImp && !bImp) return 1
-            if (!aImp && bImp) return -1
-            return (a.dog_names || '').localeCompare(b.dog_names || '')
-          })
-          setAllBookings(unique)
+      if (error || !data) return
+      const seen = new Set<string>()
+      const unique = data
+        .filter(b => {
+          const key = `${(b.dog_names || '').trim()}|||${(b.customer_name || '').trim()}`
+          if (!(b.dog_names || '').trim()) return false
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
         })
-    })
+        .sort((a, b) => {
+          const aImp = (a.customer_name || '').toLowerCase() === 'imported'
+          const bImp = (b.customer_name || '').toLowerCase() === 'imported'
+          if (aImp && !bImp) return 1
+          if (!aImp && bImp) return -1
+          return (a.dog_names || '').localeCompare(b.dog_names || '')
+        })
+      setAllBookings(unique)
+    }
+    loadBookings()
   }, [])
 
   useEffect(() => {
@@ -93,14 +89,18 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   function handleDogNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value
     setForm(f => ({ ...f, dog_name: val }))
-    if (!val.trim()) { setSuggestions([]); setShowSuggestions(false); return }
+    if (!val.trim()) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
     const q = val.toLowerCase()
     const matches = allBookings.filter(b =>
       (b.dog_names || '').toLowerCase().includes(q) ||
       (b.customer_name || '').toLowerCase().includes(q)
     )
     setSuggestions(matches)
-    setShowSuggestions(matches.length > 0)
+    setShowSuggestions(true)
   }
 
   function selectSuggestion(b: BookingSuggestion) {
@@ -138,14 +138,14 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   async function save() {
     if (!form.dog_name) { alert('Dog name is required'); return }
     setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.user) return
 
     let photoUrl = existingPhoto
 
     if (photo) {
       const ext = photo.name.split('.').pop()
-      const path = `${user.id}/${Date.now()}.${ext}`
+      const path = `${session.user.id}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage.from('dog-photos').upload(path, photo)
       if (!uploadError) {
         const { data: { publicUrl } } = supabase.storage.from('dog-photos').getPublicUrl(path)
@@ -154,7 +154,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     }
 
     const payload = {
-      user_id: user.id,
+      user_id: session.user.id,
       dog_name: form.dog_name,
       owner_name: form.owner_name,
       owner_phone: form.owner_phone,
@@ -186,7 +186,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       <div className="mb-5">
         <h1 className="text-xl font-semibold">{isEdit ? 'Edit Dog Profile' : 'New Dog Profile'}</h1>
         <p className="text-sm text-gray-500">
-          {isEdit ? 'Update this dog profile' : 'Start typing a dog or owner name to pull from existing bookings'}
+          {isEdit ? 'Update this dog profile' : 'Type a dog name OR owner name to search existing bookings'}
         </p>
       </div>
 
@@ -209,18 +209,19 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
         </div>
 
         <div className="mb-4">
-          <label className="label">Dog Name(s) or Owner Name *</label>
+          <label className="label">Search by Dog Name or Owner Name *</label>
           <div className="relative" ref={suggestRef}>
             <input
               className="input text-base sm:text-sm"
               value={form.dog_name}
               onChange={handleDogNameChange}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-              placeholder="Type dog name OR owner name to search…"
+              placeholder={`Search ${allBookings.length} bookings by dog or owner name…`}
             />
-            {showSuggestions && suggestions.length > 0 && (
+            {showSuggestions && (
               <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-64 overflow-y-auto">
-                {suggestions.map((b, i) => (
+                {suggestions.length === 0 ? (
+                  <div className="px-3 py-3 text-sm text-gray-400">No matches found</div>
+                ) : suggestions.map((b, i) => (
                   <div key={i}
                     className="flex items-center justify-between px-3 py-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 last:border-0"
                     onMouseDown={() => selectSuggestion(b)}>
@@ -228,7 +229,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                       <div className="font-medium text-sm">{b.dog_names}</div>
                       <div className="text-xs text-gray-400">
                         👤 {(b.customer_name || '').toLowerCase() === 'imported'
-                          ? '⚠️ No owner name — fill in below'
+                          ? '⚠️ No owner name saved'
                           : b.customer_name}
                         · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
                         · ${b.rate_per_dog_day}/day
@@ -240,9 +241,9 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
               </div>
             )}
           </div>
-          {!isEdit && allBookings.length > 0 && (
+          {!isEdit && (
             <div className="text-xs text-gray-400 mt-1">
-              {allBookings.length} unique booking{allBookings.length !== 1 ? 's' : ''} available — search by dog name or owner name
+              {allBookings.length} unique bookings loaded — type to search
             </div>
           )}
         </div>
