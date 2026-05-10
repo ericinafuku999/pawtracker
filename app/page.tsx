@@ -62,7 +62,7 @@ interface DogProfile {
   photo_url: string | null
 }
 
-interface CheckoutItem {
+interface PendingItem {
   booking: Booking
   payStatus: string
   bookingStatus: string
@@ -81,9 +81,9 @@ export default function Dashboard() {
   const [customEnd, setCustomEnd] = useState('')
   const [calSearch, setCalSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>([])
-  const [showCheckout, setShowCheckout] = useState(false)
-  const [savingCheckout, setSavingCheckout] = useState(false)
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
+  const [showPending, setShowPending] = useState(false)
+  const [savingPending, setSavingPending] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -102,29 +102,36 @@ export default function Dashboard() {
 
     const today = new Date()
     today.setHours(0, 0, 0, 0)
+
+    // Single combined popup — any past booking that needs attention
+    // (active status OR unpaid/partial payment)
     const pending = (bks || []).filter(b => {
-      if (b.status !== 'active') return false
+      if (b.status === 'cancelled') return false
       const dep = parseLocalDate(b.departure_date)
-      return dep < today
+      if (dep >= today) return false
+      const needsStatusUpdate = b.status === 'active'
+      const needsPaymentUpdate = b.payment_status !== 'paid'
+      return needsStatusUpdate || needsPaymentUpdate
     })
+
     if (pending.length > 0) {
-      setCheckoutItems(pending.map(b => ({
+      setPendingItems(pending.map(b => ({
         booking: b,
         payStatus: b.payment_status,
-        bookingStatus: 'completed',
+        bookingStatus: b.status === 'active' ? 'completed' : b.status,
         amountReceived: String(b.amount_received),
         extended: false,
         newDepartureDate: b.departure_date,
       })))
-      setShowCheckout(true)
+      setShowPending(true)
     }
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  async function saveCheckout() {
-    setSavingCheckout(true)
-    for (const item of checkoutItems) {
+  async function savePending() {
+    setSavingPending(true)
+    for (const item of pendingItems) {
       const update: any = {
         payment_status: item.payStatus,
         status: item.bookingStatus,
@@ -133,16 +140,29 @@ export default function Dashboard() {
       }
       if (item.extended && item.newDepartureDate !== item.booking.departure_date) {
         update.departure_date = item.newDepartureDate
+        update.status = 'active'
       }
       await supabase.from('bookings').update(update).eq('id', item.booking.id)
     }
-    setSavingCheckout(false)
-    setShowCheckout(false)
+    setSavingPending(false)
+    setShowPending(false)
     load()
   }
 
-  function updateCheckoutItem(id: string, field: string, value: string | boolean) {
-    setCheckoutItems(prev => prev.map(item =>
+  async function markOnePaid(bookingId: string) {
+    const booking = bookings.find(b => b.id === bookingId)
+    if (!booking) return
+    await supabase.from('bookings').update({
+      payment_status: 'paid',
+      amount_received: booking.total_revenue,
+      updated_at: new Date().toISOString(),
+    }).eq('id', bookingId)
+    setPendingItems(prev => prev.filter(i => i.booking.id !== bookingId))
+    load()
+  }
+
+  function updateItem(id: string, field: string, value: string | boolean) {
+    setPendingItems(prev => prev.map(item =>
       item.booking.id === id ? { ...item, [field]: value } : item
     ))
   }
@@ -159,6 +179,16 @@ export default function Dashboard() {
     return arr <= today && dep > today
   })
 
+  // Persistent unpaid banner
+  const persistentUnpaid = bookings.filter(b => {
+    if (b.status === 'cancelled') return false
+    if (b.payment_status === 'paid') return false
+    const dep = parseLocalDate(b.departure_date)
+    const t = new Date(); t.setHours(0,0,0,0)
+    return dep < t
+  })
+  const totalOwed = persistentUnpaid.reduce((s, b) => s + (b.total_revenue - b.amount_received), 0)
+
   function getProfile(booking: Booking): DogProfile | null {
     if ((booking.customer_name || '').toLowerCase() !== 'imported' && (booking.customer_name || '').trim() !== '') {
       const exact = dogProfiles.find(d =>
@@ -172,25 +202,17 @@ export default function Dashboard() {
     ) || null
   }
 
-  // Option B: whole tile → edit booking, photo → dog profile
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const profile = getProfile(booking)
-
-    function handleTileClick() {
-      router.push(`/bookings/${booking.id}`)
-    }
-
+    function handleTileClick() { router.push(`/bookings/${booking.id}`) }
     function handlePhotoClick(e: React.MouseEvent) {
       e.stopPropagation()
       if (profile) router.push(`/dogs/${profile.id}`)
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
-
     return (
       <div onClick={handleTileClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
-        <div
-          onClick={handlePhotoClick}
-          className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
+        <div onClick={handlePhotoClick} className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
           {profile?.photo_url
             ? <img src={profile.photo_url} alt={booking.dog_names} className="w-full h-full object-cover" />
             : <span className="text-xl">🐾</span>
@@ -259,80 +281,110 @@ export default function Dashboard() {
 
   return (
     <AppShell>
-      {/* Checkout popup */}
-      {showCheckout && (
+      {/* Single combined pending popup */}
+      {showPending && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="card w-full max-w-2xl max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <div>
-                <h2 className="font-semibold text-base">🐾 Pending Checkouts</h2>
-                <p className="text-xs text-gray-500 mt-0.5">{checkoutItems.length} dog{checkoutItems.length !== 1 ? 's' : ''} have left — update their bookings</p>
+                <h2 className="font-semibold text-base">🐾 Needs Your Attention</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {pendingItems.length} booking{pendingItems.length !== 1 ? 's' : ''} need updating —
+                  mark completed, update payment, or extend stay
+                </p>
               </div>
-              <button onClick={() => setShowCheckout(false)} className="text-gray-400 hover:text-gray-600 text-lg px-1">✕</button>
+              <button onClick={() => setShowPending(false)} className="text-gray-400 hover:text-gray-600 text-lg px-1">✕</button>
             </div>
             <div className="overflow-y-auto flex-1 -mx-1 px-1">
-              {checkoutItems.map(item => (
-                <div key={item.booking.id} className="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50">
-                  <div className="flex items-center gap-3 mb-3">
-                    {(() => {
-                      const profile = getProfile(item.booking)
-                      return (
-                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100">
-                          {profile?.photo_url
-                            ? <img src={profile.photo_url} alt={item.booking.dog_names} className="w-full h-full object-cover" />
-                            : <span className="text-lg">🐾</span>
-                          }
+              {pendingItems.map(item => {
+                const needsStatus = item.booking.status === 'active'
+                const needsPayment = item.booking.payment_status !== 'paid'
+                return (
+                  <div key={item.booking.id} className={`border rounded-xl p-4 mb-3 ${needsStatus ? 'bg-gray-50 border-gray-100' : 'bg-amber-50 border-amber-100'}`}>
+                    <div className="flex items-center gap-3 mb-3">
+                      {(() => {
+                        const profile = getProfile(item.booking)
+                        return (
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-white flex-shrink-0 flex items-center justify-center border border-gray-100">
+                            {profile?.photo_url
+                              ? <img src={profile.photo_url} alt={item.booking.dog_names} className="w-full h-full object-cover" />
+                              : <span className="text-lg">🐾</span>
+                            }
+                          </div>
+                        )
+                      })()}
+                      <div className="flex-1">
+                        <div className="font-semibold text-sm">{item.booking.dog_names}</div>
+                        <div className="text-xs text-gray-500">
+                          👤 {item.booking.customer_name} · departed {formatDate(item.booking.departure_date)} · {formatCurrency(item.booking.total_revenue)}
                         </div>
-                      )
-                    })()}
-                    <div>
-                      <div className="font-semibold text-sm">{item.booking.dog_names}</div>
-                      <div className="text-xs text-gray-500">👤 {item.booking.customer_name} · departed {formatDate(item.booking.departure_date)} · {formatCurrency(item.booking.total_revenue)}</div>
+                        <div className="flex gap-1 mt-1">
+                          {needsStatus && <span className="badge bg-blue-100 text-blue-700 text-xs">Needs checkout</span>}
+                          {needsPayment && <span className="badge bg-amber-100 text-amber-700 text-xs">Unpaid</span>}
+                        </div>
+                      </div>
+                      {/* Quick mark paid button */}
+                      {needsPayment && (
+                        <button
+                          onClick={() => markOnePaid(item.booking.id)}
+                          className="btn text-xs py-1.5 px-3 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 whitespace-nowrap flex-shrink-0">
+                          ✓ Mark Paid
+                        </button>
+                      )}
                     </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {needsPayment && (
+                        <>
+                          <div>
+                            <label className="label">Pay Status</label>
+                            <select className="input text-xs" value={item.payStatus} onChange={e => updateItem(item.booking.id, 'payStatus', e.target.value)}>
+                              <option value="unpaid">Unpaid</option>
+                              <option value="partially paid">Partial</option>
+                              <option value="paid">Paid ✓</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="label">Amount Received</label>
+                            <input className="input text-xs" type="number" value={item.amountReceived} onChange={e => updateItem(item.booking.id, 'amountReceived', e.target.value)} />
+                          </div>
+                        </>
+                      )}
+                      {needsStatus && (
+                        <>
+                          <div>
+                            <label className="label">Booking Status</label>
+                            <select className="input text-xs" value={item.bookingStatus} onChange={e => updateItem(item.booking.id, 'bookingStatus', e.target.value)}>
+                              <option value="completed">Completed</option>
+                              <option value="active">Still Active</option>
+                              <option value="cancelled">Cancelled</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="label">Extended?</label>
+                            <select className="input text-xs" value={item.extended ? 'yes' : 'no'} onChange={e => updateItem(item.booking.id, 'extended', e.target.value === 'yes')}>
+                              <option value="no">No</option>
+                              <option value="yes">Yes — new date</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {item.extended && (
+                      <div className="mt-3">
+                        <label className="label">New Departure Date</label>
+                        <input className="input text-xs w-48" type="date" value={item.newDepartureDate} onChange={e => updateItem(item.booking.id, 'newDepartureDate', e.target.value)} />
+                      </div>
+                    )}
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div>
-                      <label className="label">Pay Status</label>
-                      <select className="input text-xs" value={item.payStatus} onChange={e => updateCheckoutItem(item.booking.id, 'payStatus', e.target.value)}>
-                        <option value="unpaid">Unpaid</option>
-                        <option value="partially paid">Partial</option>
-                        <option value="paid">Paid ✓</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">Amount Received</label>
-                      <input className="input text-xs" type="number" value={item.amountReceived} onChange={e => updateCheckoutItem(item.booking.id, 'amountReceived', e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="label">Booking Status</label>
-                      <select className="input text-xs" value={item.bookingStatus} onChange={e => updateCheckoutItem(item.booking.id, 'bookingStatus', e.target.value)}>
-                        <option value="completed">Completed</option>
-                        <option value="active">Still Active</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="label">Extended?</label>
-                      <select className="input text-xs" value={item.extended ? 'yes' : 'no'} onChange={e => updateCheckoutItem(item.booking.id, 'extended', e.target.value === 'yes')}>
-                        <option value="no">No</option>
-                        <option value="yes">Yes — new date</option>
-                      </select>
-                    </div>
-                  </div>
-                  {item.extended && (
-                    <div className="mt-3">
-                      <label className="label">New Departure Date</label>
-                      <input className="input text-xs w-48" type="date" value={item.newDepartureDate} onChange={e => updateCheckoutItem(item.booking.id, 'newDepartureDate', e.target.value)} />
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
             <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
-              <button className="btn btn-primary flex-1 justify-center py-2.5" onClick={saveCheckout} disabled={savingCheckout}>
-                {savingCheckout ? 'Saving…' : `Update ${checkoutItems.length} Booking${checkoutItems.length !== 1 ? 's' : ''}`}
+              <button className="btn btn-primary flex-1 justify-center py-2.5" onClick={savePending} disabled={savingPending}>
+                {savingPending ? 'Saving…' : `Save All Updates`}
               </button>
-              <button className="btn flex-1 justify-center py-2.5" onClick={() => setShowCheckout(false)}>
+              <button className="btn flex-1 justify-center py-2.5" onClick={() => setShowPending(false)}>
                 Remind Me Later
               </button>
             </div>
@@ -344,6 +396,45 @@ export default function Dashboard() {
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-gray-500">Cash flow and performance overview</p>
       </div>
+
+      {/* Persistent unpaid banner */}
+      {persistentUnpaid.length > 0 && (
+        <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚠️</span>
+              <div>
+                <div className="font-semibold text-sm text-amber-800">{persistentUnpaid.length} Unpaid Booking{persistentUnpaid.length !== 1 ? 's' : ''}</div>
+                <div className="text-xs text-amber-600">{formatCurrency(totalOwed)} still outstanding</div>
+              </div>
+            </div>
+            <button onClick={() => setShowPending(true)} className="btn text-xs bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200">
+              Update All
+            </button>
+          </div>
+          <div className="space-y-2">
+            {persistentUnpaid.slice(0, 3).map(b => (
+              <div key={b.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-amber-100">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-sm">{b.dog_names}</span>
+                  <span className="text-xs text-gray-500 ml-2 hidden sm:inline">· {b.customer_name} · departed {formatDate(b.departure_date)}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-amber-700 font-medium">{formatCurrency(b.total_revenue - b.amount_received)} owed</span>
+                  <button onClick={() => markOnePaid(b.id)} className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
+                    ✓ Paid
+                  </button>
+                </div>
+              </div>
+            ))}
+            {persistentUnpaid.length > 3 && (
+              <div className="text-xs text-amber-600 text-center pt-1">
+                +{persistentUnpaid.length - 3} more · <button className="underline" onClick={() => setShowPending(true)}>View all</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* TODAY WIDGET */}
       {(arrivingToday.length > 0 || departingToday.length > 0 || currentlyHere.length > 0) && (
