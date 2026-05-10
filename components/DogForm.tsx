@@ -37,7 +37,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const router = useRouter()
   const supabase = createClient()
 
-  // Load bookings for suggestions, preferring non-Imported ones
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -47,28 +46,28 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
         .neq('status', 'cancelled')
         .then(({ data }) => {
           if (!data) return
-          // Sort so non-Imported bookings come first
-          const sorted = [...data].sort((a, b) => {
-            const aImported = (a.customer_name || '').toLowerCase() === 'imported'
-            const bImported = (b.customer_name || '').toLowerCase() === 'imported'
-            if (aImported && !bImported) return 1
-            if (!aImported && bImported) return -1
-            return 0
-          })
-          // Deduplicate by dog_names keeping non-Imported first
+          // Sort non-Imported first, then deduplicate keeping best match
+          // But keep ALL unique dog_name + customer_name combinations
           const seen = new Set<string>()
-          const unique = sorted.filter(b => {
-            const key = (b.dog_names || '').trim()
-            if (!key || seen.has(key)) return false
-            seen.add(key)
-            return true
-          })
+          const unique = data
+            .sort((a, b) => {
+              const aImp = (a.customer_name || '').toLowerCase() === 'imported'
+              const bImp = (b.customer_name || '').toLowerCase() === 'imported'
+              if (aImp && !bImp) return 1
+              if (!aImp && bImp) return -1
+              return 0
+            })
+            .filter(b => {
+              const key = `${(b.dog_names || '').trim()}__${(b.customer_name || '').trim()}`
+              if (!b.dog_names?.trim() || seen.has(key)) return false
+              seen.add(key)
+              return true
+            })
           setAllBookings(unique)
         })
     })
   }, [])
 
-  // Load existing dog profile if editing
   useEffect(() => {
     if (dogId) {
       supabase.from('dogs').select('*').eq('id', dogId).single().then(({ data }) => {
@@ -104,7 +103,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     setForm(f => ({
       ...f,
       dog_name: b.dog_names,
-      owner_name: b.customer_name !== 'Imported' ? b.customer_name : f.owner_name,
+      owner_name: (b.customer_name || '').toLowerCase() !== 'imported' ? b.customer_name : f.owner_name,
       number_of_dogs: String(b.number_of_dogs),
       default_rate: String(b.rate_per_dog_day),
     }))
@@ -188,7 +187,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       </div>
 
       <div className="card max-w-lg">
-        {/* Photo upload */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-5">
           <div className="w-28 h-28 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-emerald-50 flex items-center justify-center border-2 border-dashed border-emerald-200 flex-shrink-0">
             {photoPreview || existingPhoto ? (
@@ -206,7 +204,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
-        {/* Dog name with type-ahead */}
         <div className="mb-4">
           <label className="label">Dog Name(s) *</label>
           <div className="relative" ref={suggestRef}>
@@ -218,7 +215,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
               placeholder="Type to search existing bookings…"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-56 overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-64 overflow-y-auto">
                 {suggestions.map((b, i) => (
                   <div key={i}
                     className="flex items-center justify-between px-3 py-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 last:border-0"
@@ -226,12 +223,12 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                     <div>
                       <div className="font-medium text-sm">{b.dog_names}</div>
                       <div className="text-xs text-gray-400">
-                        👤 {b.customer_name === 'Imported' ? '(no owner name — fill in below)' : b.customer_name}
+                        👤 {(b.customer_name || '').toLowerCase() === 'imported' ? '⚠️ No owner name saved' : b.customer_name}
                         · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
                         · ${b.rate_per_dog_day}/day
                       </div>
                     </div>
-                    <span className="text-xs text-emerald-600 font-medium ml-2">Use →</span>
+                    <span className="text-xs text-emerald-600 font-medium ml-2 whitespace-nowrap">Use →</span>
                   </div>
                 ))}
               </div>
@@ -239,7 +236,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
           {!isEdit && allBookings.length > 0 && (
             <div className="text-xs text-gray-400 mt-1">
-              {allBookings.length} existing booking{allBookings.length !== 1 ? 's' : ''} available to pull from
+              {allBookings.length} unique booking{allBookings.length !== 1 ? 's' : ''} available to pull from
             </div>
           )}
         </div>
