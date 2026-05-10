@@ -120,7 +120,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           <div className="text-center sm:text-left">
             <label className="btn btn-primary cursor-pointer py-3 px-5 sm:py-1.5 sm:px-3 text-base sm:text-xs">
               📷 {photoPreview || existingPhoto ? 'Change Photo' : 'Upload Photo'}
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhoto} />
+              <input type="file" accept="image/*" className="hidden" onChange={handlePhoto} />
             </label>
             <div className="text-xs text-gray-400 mt-1">Tap to use camera or choose from library</div>
           </div>
