@@ -103,39 +103,34 @@ export default function Dashboard() {
     return arr <= today && dep > today
   })
 
-  function getDogPhoto(dogName: string) {
-    const profile = dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
-      dogName.toLowerCase().includes(d.dog_name.toLowerCase())
+  // Match strictly by dog name + owner name, fall back to dog name only
+  function getProfile(booking: Booking): DogProfile | null {
+    const strict = dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
+      d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
     )
-    return profile?.photo_url || null
-  }
-
-  function getDogProfileId(dogName: string) {
-    const profile = dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
-      dogName.toLowerCase().includes(d.dog_name.toLowerCase())
-    )
-    return profile?.id || null
+    if (strict) return strict
+    return dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
+    ) || null
   }
 
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
-    const photo = getDogPhoto(booking.dog_names)
-    const profileId = getDogProfileId(booking.dog_names)
+    const profile = getProfile(booking)
 
     function handleClick() {
-      if (profileId) router.push(`/dogs/${profileId}`)
+      if (profile) router.push(`/dogs/${profile.id}`)
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
 
     return (
       <div onClick={handleClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative">
-          {photo
-            ? <img src={photo} alt={booking.dog_names} className="w-full h-full object-cover" />
+          {profile?.photo_url
+            ? <img src={profile.photo_url} alt={booking.dog_names} className="w-full h-full object-cover" />
             : <span className="text-xl">🐾</span>
           }
-          {!photo && (
+          {!profile?.photo_url && (
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
               <span className="text-white text-xs font-bold">+ Photo</span>
             </div>
@@ -148,7 +143,7 @@ export default function Dashboard() {
             <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>
           )}
           <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
-            {profileId ? 'Edit profile →' : 'Create profile →'}
+            {profile ? 'Edit profile →' : 'Create profile →'}
           </div>
         </div>
         <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
