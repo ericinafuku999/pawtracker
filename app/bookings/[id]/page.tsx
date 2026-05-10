@@ -1,11 +1,11 @@
 'use client'
 import { Suspense } from 'react'
-import DogFormContent from '@/components/DogForm'
+import BookingForm from '@/components/BookingForm'
 
-export default function EditDogPage({ params }: { params: { id: string } }) {
+export default function EditBookingPage({ params }: { params: { id: string } }) {
   return (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Loading…</div>}>
-      <DogFormContent dogId={params.id} />
+      <BookingForm bookingId={params.id} />
     </Suspense>
   )
 }
