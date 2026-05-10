@@ -79,15 +79,13 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const matchedIds = new Set(matchedBookings.map(b => b.id))
 
   function getDogProfile(booking: Booking): DogProfile | null {
-    // If owner is known, match on both dog name + owner name
-    if ((booking.customer_name || '').toLowerCase() !== 'imported') {
+    if ((booking.customer_name || '').toLowerCase() !== 'imported' && (booking.customer_name || '').trim() !== '') {
       const exact = dogProfiles.find(d =>
         d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
         d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
       )
       if (exact) return exact
     }
-    // Fall back to dog name only (covers Imported bookings)
     return dogProfiles.find(d =>
       d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null
@@ -107,6 +105,11 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
       })
       router.push(`/dogs/new?${params.toString()}`)
     }
+  }
+
+  function handleEditBooking(e: React.MouseEvent, bookingId: string) {
+    e.stopPropagation()
+    router.push(`/bookings/${bookingId}`)
   }
 
   async function deleteBooking(id: string) {
@@ -315,7 +318,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                         className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
                           ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Dog photo — click to open profile */}
+                          {/* Dog photo — click opens profile */}
                           <div
                             className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all relative group"
                             onClick={e => handleProfileClick(e, b)}
@@ -329,7 +332,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            {/* Clickable dog name → profile */}
+                            {/* Dog name — click opens profile */}
                             <button
                               onClick={e => handleProfileClick(e, b)}
                               className="font-semibold text-sm text-left hover:text-emerald-600 hover:underline transition-colors truncate block w-full">
@@ -343,12 +346,13 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
+                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Click name/photo for profile · Edit button for booking</div>
                           </div>
                         </div>
-                        {/* Edit button → edit booking only */}
+                        {/* Edit button → booking only, Del button → delete */}
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
                           <button
-                            onClick={e => { e.stopPropagation(); router.push(`/bookings/${b.id}`) }}
+                            onClick={e => handleEditBooking(e, b.id)}
                             className="btn text-xs py-1.5 px-2 md:py-1">
                             Edit
                           </button>
