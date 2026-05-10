@@ -65,6 +65,12 @@ export default function ExpensesPage() {
     a.download = 'expenses.csv'; a.click()
   }
 
+  async function deleteExpense(id: string) {
+    if (!confirm('Delete this expense?')) return
+    await supabase.from('expenses').delete().eq('id', id)
+    load()
+  }
+
   return (
     <AppShell>
       <div className="flex justify-between items-start mb-5">
@@ -78,7 +84,7 @@ export default function ExpensesPage() {
           <div className="font-semibold text-sm text-emerald-800">📋 {currentYear} Tax Year Summary</div>
           <button className="btn text-xs" onClick={exportCSV}>↓ Export CSV</button>
         </div>
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-white rounded-lg p-3 border border-emerald-100">
             <div className="text-xs text-gray-400 mb-1">Total Expenses</div>
             <div className="text-xl font-semibold">${yearTotal.toFixed(2)}</div>
@@ -165,7 +171,10 @@ export default function ExpensesPage() {
                         </td>
                         <td className="td text-gray-500 max-w-[120px] truncate">{e.notes || '—'}</td>
                         <td className="td">
-                          <button className="btn text-xs py-1 px-2" onClick={() => router.push(`/expenses/${e.id}`)}>Edit</button>
+                          <div className="flex gap-1">
+                            <button className="btn text-xs py-1 px-2" onClick={() => router.push(`/expenses/${e.id}`)}>Edit</button>
+                            <button className="btn btn-danger text-xs py-1 px-2" onClick={() => deleteExpense(e.id)}>✕</button>
+                          </div>
                         </td>
                       </tr>
                     ))}

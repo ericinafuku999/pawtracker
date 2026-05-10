@@ -25,6 +25,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
   })
   const [calc, setCalc] = useState<{ days: number; dogDays: number; revenue: number; splits: any[] } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
   const [dogSearch, setDogSearch] = useState('')
   const [dogResults, setDogResults] = useState<DogProfile[]>([])
   const [allDogs, setAllDogs] = useState<DogProfile[]>([])
@@ -130,7 +131,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
     router.push('/bookings')
   }
 
-  async function save() {
+  async function save(addAnother = false) {
     if (!form.customer_name || !form.arrival_date || !form.departure_date) { alert('Fill required fields'); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -168,7 +169,21 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       await supabase.from('bookings').insert({ ...payload, created_at: new Date().toISOString() })
     }
     setSaving(false)
-    goBack()
+    if (addAnother) {
+      // Reset form for another booking
+      setForm({
+        customer_name: '', dog_names: '', number_of_dogs: '1', rate_per_dog_day: '50',
+        arrival_date: '', departure_date: '', dog_days_override: '',
+        payment_type: 'Rover', payment_status: 'unpaid', amount_received: '0',
+        status: 'active', cancellation_reason: '', notes: ''
+      })
+      setSelectedDog(null)
+      setDogSearch('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } else {
+      goBack()
+    }
   }
 
   async function deleteBooking() {
@@ -184,15 +199,20 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
         <p className="text-sm text-gray-500">Schedule a dog care appointment</p>
       </div>
 
-      <div className="card max-w-2xl">
+      {saved && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 font-medium">
+          ✓ Booking saved! Fill in the form below to add another.
+        </div>
+      )}
 
+      <div className="card max-w-2xl">
         {/* Dog search type-ahead */}
         {!isEdit && (
           <div className="mb-5 pb-5 border-b border-gray-100">
             <label className="label">Quick fill from dog profile</label>
             {selectedDog ? (
               <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-                <div className="w-12 h-12 rounded-lg overflow-hidden bg-white flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-white flex items-center justify-center flex-shrink-0">
                   {selectedDog.photo_url
                     ? <img src={selectedDog.photo_url} alt={selectedDog.dog_name} className="w-full h-full object-cover" />
                     : <span className="text-2xl">🐾</span>
@@ -208,7 +228,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
               <div className="relative" ref={searchRef}>
                 <input
                   className="input pl-8 text-base sm:text-sm py-3 sm:py-2"
-                  placeholder="Type a dog name to search…"
+                  placeholder="Type a dog name to search profiles…"
                   value={dogSearch}
                   onChange={e => setDogSearch(e.target.value)}
                   onFocus={() => dogSearch && setShowDropdown(true)}
@@ -244,18 +264,15 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           </div>
         )}
 
-        {/* Form fields — single column on mobile */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Customer Name *</label><input className="input text-base sm:text-sm" value={form.customer_name} onChange={set('customer_name')} placeholder="e.g. Smith" /></div>
           <div><label className="label">Dog Name(s)</label><input className="input text-base sm:text-sm" value={form.dog_names} onChange={set('dog_names')} placeholder="e.g. Max, Bella" /></div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
           <div><label className="label"># of Dogs *</label><input className="input text-base sm:text-sm" type="number" min="1" value={form.number_of_dogs} onChange={set('number_of_dogs')} /></div>
           <div><label className="label">Rate / Dog-Day ($) *</label><input className="input text-base sm:text-sm" type="number" value={form.rate_per_dog_day} onChange={set('rate_per_dog_day')} /></div>
           <div><label className="label">Override Dog-Days</label><input className="input text-base sm:text-sm" type="number" placeholder="Auto" value={form.dog_days_override} onChange={set('dog_days_override')} /></div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Arrival Date *</label><input className="input text-base sm:text-sm" type="date" value={form.arrival_date} onChange={set('arrival_date')} /></div>
           <div><label className="label">Departure Date *</label><input className="input text-base sm:text-sm" type="date" value={form.departure_date} onChange={set('departure_date')} /></div>
@@ -289,7 +306,6 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           </div>
           <div><label className="label">Amount Received ($)</label><input className="input text-base sm:text-sm" type="number" value={form.amount_received} onChange={set('amount_received')} /></div>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Booking Status</label>
             <select className="input text-base sm:text-sm" value={form.status} onChange={set('status')}>
@@ -298,16 +314,17 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           </div>
           <div><label className="label">Cancellation Reason</label><input className="input text-base sm:text-sm" value={form.cancellation_reason} onChange={set('cancellation_reason')} placeholder="Optional" /></div>
         </div>
-
-        <div className="mb-5">
-          <label className="label">Notes</label>
-          <textarea className="input text-base sm:text-sm" rows={2} value={form.notes} onChange={set('notes')} placeholder="Any special notes…" />
-        </div>
+        <div className="mb-5"><label className="label">Notes</label><textarea className="input text-base sm:text-sm" rows={2} value={form.notes} onChange={set('notes')} placeholder="Any special notes…" /></div>
 
         <div className="flex flex-col sm:flex-row gap-2">
-          <button className="btn btn-primary justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Booking'}
+          <button className="btn btn-primary justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={() => save(false)} disabled={saving}>
+            {saving ? 'Saving…' : isEdit ? 'Save Booking' : 'Save Booking'}
           </button>
+          {!isEdit && (
+            <button className="btn justify-center py-3 sm:py-1.5 text-base sm:text-sm bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" onClick={() => save(true)} disabled={saving}>
+              {saving ? 'Saving…' : '+ Save & Add Another'}
+            </button>
+          )}
           <button className="btn justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={goBack}>Cancel</button>
           {isEdit && <button className="btn btn-danger justify-center py-3 sm:py-1.5 text-base sm:text-sm sm:ml-auto" onClick={deleteBooking}>Delete</button>}
         </div>

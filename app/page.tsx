@@ -62,6 +62,15 @@ interface DogProfile {
   photo_url: string | null
 }
 
+interface CheckoutItem {
+  booking: Booking
+  payStatus: string
+  bookingStatus: string
+  amountReceived: string
+  extended: boolean
+  newDepartureDate: string
+}
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -72,6 +81,9 @@ export default function Dashboard() {
   const [customEnd, setCustomEnd] = useState('')
   const [calSearch, setCalSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>([])
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [savingCheckout, setSavingCheckout] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -87,9 +99,54 @@ export default function Dashboard() {
     setExpenses(exps || [])
     setDogProfiles(dogs || [])
     setLoading(false)
+
+    // Check for pending checkouts
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const pending = (bks || []).filter(b => {
+      if (b.status !== 'active') return false
+      const dep = parseLocalDate(b.departure_date)
+      return dep < today
+    })
+    if (pending.length > 0) {
+      setCheckoutItems(pending.map(b => ({
+        booking: b,
+        payStatus: b.payment_status,
+        bookingStatus: 'completed',
+        amountReceived: String(b.amount_received),
+        extended: false,
+        newDepartureDate: b.departure_date,
+      })))
+      setShowCheckout(true)
+    }
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  async function saveCheckout() {
+    setSavingCheckout(true)
+    for (const item of checkoutItems) {
+      const update: any = {
+        payment_status: item.payStatus,
+        status: item.bookingStatus,
+        amount_received: parseFloat(item.amountReceived) || item.booking.amount_received,
+        updated_at: new Date().toISOString(),
+      }
+      if (item.extended && item.newDepartureDate !== item.booking.departure_date) {
+        update.departure_date = item.newDepartureDate
+      }
+      await supabase.from('bookings').update(update).eq('id', item.booking.id)
+    }
+    setSavingCheckout(false)
+    setShowCheckout(false)
+    load()
+  }
+
+  function updateCheckoutItem(id: string, field: string, value: string | boolean) {
+    setCheckoutItems(prev => prev.map(item =>
+      item.booking.id === id ? { ...item, [field]: value } : item
+    ))
+  }
 
   const today = new Date()
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -103,17 +160,14 @@ export default function Dashboard() {
     return arr <= today && dep > today
   })
 
-  // Match strictly by dog name + owner name, fall back to dog name only
   function getProfile(booking: Booking): DogProfile | null {
-    // If owner is known, try exact match on both
-    if ((booking.customer_name || '').toLowerCase() !== 'imported') {
+    if ((booking.customer_name || '').toLowerCase() !== 'imported' && (booking.customer_name || '').trim() !== '') {
       const exact = dogProfiles.find(d =>
         d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
         d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
       )
       if (exact) return exact
     }
-    // Fall back to dog name only
     return dogProfiles.find(d =>
       d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null
@@ -121,12 +175,10 @@ export default function Dashboard() {
 
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const profile = getProfile(booking)
-
     function handleClick() {
       if (profile) router.push(`/dogs/${profile.id}`)
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
-
     return (
       <div onClick={handleClick} className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
         <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative">
@@ -143,12 +195,8 @@ export default function Dashboard() {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{booking.dog_names}</div>
           <div className="text-xs text-gray-500 truncate">👤 {booking.customer_name}</div>
-          {showDates && (
-            <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>
-          )}
-          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
-            {profile ? 'Edit profile →' : 'Create profile →'}
-          </div>
+          {showDates && <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>}
+          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">{profile ? 'Edit profile →' : 'Create profile →'}</div>
         </div>
         <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
@@ -204,6 +252,87 @@ export default function Dashboard() {
 
   return (
     <AppShell>
+      {/* Checkout popup */}
+      {showCheckout && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="card w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="font-semibold text-base">🐾 Pending Checkouts</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{checkoutItems.length} dog{checkoutItems.length !== 1 ? 's' : ''} have left — update their bookings</p>
+              </div>
+              <button onClick={() => setShowCheckout(false)} className="text-gray-400 hover:text-gray-600 text-lg px-1">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 -mx-1 px-1">
+              {checkoutItems.map(item => (
+                <div key={item.booking.id} className="border border-gray-100 rounded-xl p-4 mb-3 bg-gray-50">
+                  <div className="flex items-center gap-3 mb-3">
+                    {(() => {
+                      const profile = getProfile(item.booking)
+                      return (
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100">
+                          {profile?.photo_url
+                            ? <img src={profile.photo_url} alt={item.booking.dog_names} className="w-full h-full object-cover" />
+                            : <span className="text-lg">🐾</span>
+                          }
+                        </div>
+                      )
+                    })()}
+                    <div>
+                      <div className="font-semibold text-sm">{item.booking.dog_names}</div>
+                      <div className="text-xs text-gray-500">👤 {item.booking.customer_name} · departed {formatDate(item.booking.departure_date)} · {formatCurrency(item.booking.total_revenue)}</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="label">Pay Status</label>
+                      <select className="input text-xs" value={item.payStatus} onChange={e => updateCheckoutItem(item.booking.id, 'payStatus', e.target.value)}>
+                        <option value="unpaid">Unpaid</option>
+                        <option value="partially paid">Partial</option>
+                        <option value="paid">Paid ✓</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Amount Received</label>
+                      <input className="input text-xs" type="number" value={item.amountReceived} onChange={e => updateCheckoutItem(item.booking.id, 'amountReceived', e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="label">Booking Status</label>
+                      <select className="input text-xs" value={item.bookingStatus} onChange={e => updateCheckoutItem(item.booking.id, 'bookingStatus', e.target.value)}>
+                        <option value="completed">Completed</option>
+                        <option value="active">Still Active</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="label">Extended?</label>
+                      <select className="input text-xs" value={item.extended ? 'yes' : 'no'} onChange={e => updateCheckoutItem(item.booking.id, 'extended', e.target.value === 'yes')}>
+                        <option value="no">No</option>
+                        <option value="yes">Yes — new date</option>
+                      </select>
+                    </div>
+                  </div>
+                  {item.extended && (
+                    <div className="mt-3">
+                      <label className="label">New Departure Date</label>
+                      <input className="input text-xs w-48" type="date" value={item.newDepartureDate} onChange={e => updateCheckoutItem(item.booking.id, 'newDepartureDate', e.target.value)} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+              <button className="btn btn-primary flex-1 justify-center py-2.5" onClick={saveCheckout} disabled={savingCheckout}>
+                {savingCheckout ? 'Saving…' : `Update ${checkoutItems.length} Booking${checkoutItems.length !== 1 ? 's' : ''}`}
+              </button>
+              <button className="btn flex-1 justify-center py-2.5" onClick={() => setShowCheckout(false)}>
+                Remind Me Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-5">
         <h1 className="text-xl font-semibold">Dashboard</h1>
         <p className="text-sm text-gray-500">Cash flow and performance overview</p>
