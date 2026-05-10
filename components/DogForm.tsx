@@ -170,7 +170,8 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     }
 
     setSaving(false)
-    router.push('/dogs')
+    // Go back to previous page instead of always going to /dogs
+    router.back()
   }
 
   async function deleteDog() {
@@ -289,7 +290,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           <button className="btn btn-primary justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save Profile'}
           </button>
-          <button className="btn justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={() => router.push('/dogs')}>
+          <button className="btn justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={() => router.back()}>
             Cancel
           </button>
           {isEdit && (

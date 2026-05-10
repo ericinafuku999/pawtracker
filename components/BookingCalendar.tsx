@@ -78,17 +78,21 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const matchedBookings = activeBookings.filter(b => matchesSearch(b, searchQuery))
   const matchedIds = new Set(matchedBookings.map(b => b.id))
 
-  function getDogProfile(dogName: string) {
+  // Match by dog name + owner name first, fall back to dog name only
+  function getDogProfile(booking: Booking) {
+    const exact = dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase() &&
+      d.owner_name.toLowerCase() === (booking.customer_name || '').toLowerCase()
+    )
+    if (exact) return exact
     return dogProfiles.find(d =>
-      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
-      dogName.toLowerCase().includes(d.dog_name.toLowerCase()) ||
-      d.dog_name.toLowerCase().includes(dogName.toLowerCase())
+      d.dog_name.toLowerCase() === (booking.dog_names || '').toLowerCase()
     ) || null
   }
 
   function handleDogNameClick(e: React.MouseEvent, booking: Booking) {
     e.stopPropagation()
-    const profile = getDogProfile(booking.dog_names)
+    const profile = getDogProfile(booking)
     if (profile) {
       router.push(`/dogs/${profile.id}`)
     } else {
@@ -168,7 +172,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
 
   return (
     <div>
-      {/* Alert banners */}
       {overbookedDays.length > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
           <span>🚨</span>
@@ -184,7 +187,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       )}
 
-      {/* Search results */}
       {hasSearch && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">
           {matchedBookings.length === 0 ? (
@@ -204,7 +206,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-1 md:gap-2">
           <button onClick={prev} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-sm">‹</button>
@@ -224,7 +225,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       </div>
 
-      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
         {['S','M','T','W','T','F','S'].map((d, i) => (
           <div key={i} className="text-center text-xs font-medium text-gray-400 py-1 md:hidden">{d}</div>
@@ -234,7 +234,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         ))}
       </div>
 
-      {/* Calendar rows */}
       {rows.map((row, rowIdx) => (
         <div key={rowIdx}>
           <div className="grid grid-cols-7">
@@ -288,7 +287,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
             })}
           </div>
 
-          {/* Day detail panel */}
           {selectedDay && selectedRowIndex === rowIdx && (
             <div className="border border-emerald-200 rounded-xl bg-white shadow-sm overflow-hidden mb-1">
               <div className="flex items-center justify-between px-3 md:px-4 py-2.5 bg-emerald-50 border-b border-emerald-100">
@@ -308,14 +306,14 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                 <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
-                    const profile = getDogProfile(b.dog_names)
+                    const profile = getDogProfile(b)
                     return (
                       <div key={b.id}
                         className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
                           ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}
                         onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
                         <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Dog photo */}
+                          {/* Dog photo — click to open profile */}
                           <div
                             className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all"
                             onClick={e => handleDogNameClick(e, b)}
@@ -326,7 +324,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             }
                           </div>
                           <div className="min-w-0 flex-1">
-                            {/* Clickable dog name */}
+                            {/* Clickable dog name → profile */}
                             <button
                               onClick={e => handleDogNameClick(e, b)}
                               className="font-semibold text-sm text-left hover:text-emerald-600 hover:underline transition-colors truncate block w-full">
@@ -340,7 +338,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
-                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click row to edit booking</div>
+                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click row to edit booking · Click name for profile</div>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
@@ -357,7 +355,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       ))}
 
-      {/* Legend */}
       {activeBookings.length > 0 && (
         <div className="mt-3 hidden md:flex flex-wrap gap-2">
           {activeBookings.slice(0, 8).map((b, i) => {
