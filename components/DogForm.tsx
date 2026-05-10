@@ -37,6 +37,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const router = useRouter()
   const supabase = createClient()
 
+  // Load bookings for suggestions, preferring non-Imported ones
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
@@ -46,10 +47,19 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
         .neq('status', 'cancelled')
         .then(({ data }) => {
           if (!data) return
+          // Sort so non-Imported bookings come first
+          const sorted = [...data].sort((a, b) => {
+            const aImported = (a.customer_name || '').toLowerCase() === 'imported'
+            const bImported = (b.customer_name || '').toLowerCase() === 'imported'
+            if (aImported && !bImported) return 1
+            if (!aImported && bImported) return -1
+            return 0
+          })
+          // Deduplicate by dog_names keeping non-Imported first
           const seen = new Set<string>()
-          const unique = data.filter(b => {
+          const unique = sorted.filter(b => {
             const key = (b.dog_names || '').trim()
-            if (!key || key === 'Imported' || seen.has(key)) return false
+            if (!key || seen.has(key)) return false
             seen.add(key)
             return true
           })
@@ -58,6 +68,7 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     })
   }, [])
 
+  // Load existing dog profile if editing
   useEffect(() => {
     if (dogId) {
       supabase.from('dogs').select('*').eq('id', dogId).single().then(({ data }) => {
@@ -86,14 +97,14 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       (b.customer_name || '').toLowerCase().includes(q)
     )
     setSuggestions(matches)
-    setShowSuggestions(true)
+    setShowSuggestions(matches.length > 0)
   }
 
   function selectSuggestion(b: BookingSuggestion) {
     setForm(f => ({
       ...f,
       dog_name: b.dog_names,
-      owner_name: b.customer_name,
+      owner_name: b.customer_name !== 'Imported' ? b.customer_name : f.owner_name,
       number_of_dogs: String(b.number_of_dogs),
       default_rate: String(b.rate_per_dog_day),
     }))
@@ -214,9 +225,13 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
                     onMouseDown={() => selectSuggestion(b)}>
                     <div>
                       <div className="font-medium text-sm">{b.dog_names}</div>
-                      <div className="text-xs text-gray-400">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''} · ${b.rate_per_dog_day}/day</div>
+                      <div className="text-xs text-gray-400">
+                        👤 {b.customer_name === 'Imported' ? '(no owner name — fill in below)' : b.customer_name}
+                        · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''}
+                        · ${b.rate_per_dog_day}/day
+                      </div>
                     </div>
-                    <span className="text-xs text-emerald-600 font-medium">Use this →</span>
+                    <span className="text-xs text-emerald-600 font-medium ml-2">Use →</span>
                   </div>
                 ))}
               </div>
