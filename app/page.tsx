@@ -103,8 +103,6 @@ export default function Dashboard() {
     const today = new Date()
     today.setHours(0, 0, 0, 0)
 
-    // Single combined popup — any past booking that needs attention
-    // (active status OR unpaid/partial payment)
     const pending = (bks || []).filter(b => {
       if (b.status === 'cancelled') return false
       const dep = parseLocalDate(b.departure_date)
@@ -169,8 +167,12 @@ export default function Dashboard() {
 
   const today = new Date()
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`
 
   const arrivingToday = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === todayStr)
+  const arrivingTomorrow = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === tomorrowStr)
   const departingToday = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === todayStr)
   const currentlyHere = bookings.filter(b => {
     if (b.status === 'cancelled') return false
@@ -179,7 +181,6 @@ export default function Dashboard() {
     return arr <= today && dep > today
   })
 
-  // Persistent unpaid banner
   const persistentUnpaid = bookings.filter(b => {
     if (b.status === 'cancelled') return false
     if (b.payment_status === 'paid') return false
@@ -323,7 +324,6 @@ export default function Dashboard() {
                           {needsPayment && <span className="badge bg-amber-100 text-amber-700 text-xs">Unpaid</span>}
                         </div>
                       </div>
-                      {/* Quick mark paid button */}
                       {needsPayment && (
                         <button
                           onClick={() => markOnePaid(item.booking.id)}
@@ -332,7 +332,6 @@ export default function Dashboard() {
                         </button>
                       )}
                     </div>
-
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {needsPayment && (
                         <>
@@ -437,8 +436,8 @@ export default function Dashboard() {
       )}
 
       {/* TODAY WIDGET */}
-      {(arrivingToday.length > 0 || departingToday.length > 0 || currentlyHere.length > 0) && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+      {(arrivingToday.length > 0 || arrivingTomorrow.length > 0 || departingToday.length > 0 || currentlyHere.length > 0) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
           <div className="card border-emerald-200 bg-emerald-50">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🟢</span>
@@ -448,6 +447,17 @@ export default function Dashboard() {
             {arrivingToday.length === 0
               ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
               : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-teal-200 bg-teal-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🌅</span>
+              <div className="font-semibold text-sm text-teal-800">Arriving Tomorrow</div>
+              <span className="badge bg-teal-200 text-teal-800 ml-auto">{arrivingTomorrow.length}</span>
+            </div>
+            {arrivingTomorrow.length === 0
+              ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
+              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
             }
           </div>
           <div className="card border-red-200 bg-red-50">
