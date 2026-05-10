@@ -40,7 +40,6 @@ export default function Sidebar() {
     })
   }, [])
 
-  // Close menu on route change
   useEffect(() => { setOpen(false) }, [pathname])
 
   async function signOut() {
@@ -91,7 +90,7 @@ export default function Sidebar() {
     <>
       {/* Mobile header bar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white border-b border-gray-200 flex items-center justify-between px-4 py-3">
-        <div className="font-semibold text-base">🐾 PawTracker</div>
+        <Link href="/" className="font-semibold text-base hover:opacity-80 transition-opacity">🐾 PawTracker</Link>
         <button onClick={() => setOpen(!open)} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
           {open ? (
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
@@ -108,12 +107,11 @@ export default function Sidebar() {
 
       {/* Mobile slide-out drawer */}
       <div className={`md:hidden fixed top-0 left-0 bottom-0 z-40 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-200 ${open ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-4 border-b border-gray-100">
-          <Link href="/" className="block hover:opacity-80 transition-opacity">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <Link href="/" className="hover:opacity-80 transition-opacity">
             <div className="font-semibold text-base">🐾 PawTracker</div>
             <div className="text-xs text-gray-400 mt-0.5">Dog Care Business</div>
           </Link>
-        </div>
           <button onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
             <svg width="18" height="18" viewBox="0 0 20 20" fill="none"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
           </button>
@@ -124,8 +122,10 @@ export default function Sidebar() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex w-52 min-w-[208px] bg-white border-r border-gray-200 flex-col h-screen sticky top-0">
         <div className="p-4 border-b border-gray-100">
-          <Link href="/" className="font-semibold text-base hover:opacity-80 transition-opacity">🐾 PawTracker</Link>
-          <div className="text-xs text-gray-400 mt-0.5">Dog Care Business</div>
+          <Link href="/" className="block hover:opacity-80 transition-opacity">
+            <div className="font-semibold text-base">🐾 PawTracker</div>
+            <div className="text-xs text-gray-400 mt-0.5">Dog Care Business</div>
+          </Link>
         </div>
         {navContent}
       </aside>
