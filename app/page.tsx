@@ -461,54 +461,63 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* TODAY WIDGET — 2 columns on mobile, 3 on tablet, 5 on desktop */}
+     {/* TODAY WIDGET */}
       {showTodayWidget && (
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold text-sm text-gray-700">Today & Tomorrow</div>
-            <div className="text-xs text-gray-400">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+          <div className="card border-emerald-200 bg-emerald-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🟢</span>
+              <div className="font-semibold text-sm text-emerald-800">Arriving Today</div>
+              <span className="badge bg-emerald-200 text-emerald-800 ml-auto">{arrivingToday.length}</span>
+            </div>
+            {arrivingToday.length === 0
+              ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
+              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-            <TodayCard
-              icon="🟢" title="Arriving Today"
-              color="bg-emerald-50 border-emerald-200"
-              badgeColor="bg-emerald-200 text-emerald-800"
-              count={arrivingToday.length}
-              emptyText="None today" emptyColor="text-emerald-500">
-              {arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}
-            </TodayCard>
-            <TodayCard
-              icon="🌅" title="Arriving Tomorrow"
-              color="bg-teal-50 border-teal-200"
-              badgeColor="bg-teal-200 text-teal-800"
-              count={arrivingTomorrow.length}
-              emptyText="None tomorrow" emptyColor="text-teal-500">
-              {arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}
-            </TodayCard>
-            <TodayCard
-              icon="🔴" title="Departing Today"
-              color="bg-red-50 border-red-200"
-              badgeColor="bg-red-200 text-red-800"
-              count={departingToday.length}
-              emptyText="None today" emptyColor="text-red-400">
-              {departingToday.map(b => <DogCard key={b.id} booking={b} />)}
-            </TodayCard>
-            <TodayCard
-              icon="🌇" title="Leaving Tomorrow"
-              color="bg-orange-50 border-orange-200"
-              badgeColor="bg-orange-200 text-orange-800"
-              count={departingTomorrow.length}
-              emptyText="None tomorrow" emptyColor="text-orange-400">
-              {departingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}
-            </TodayCard>
-            <TodayCard
-              icon="🏠" title="Currently Here"
-              color="bg-blue-50 border-blue-200"
-              badgeColor="bg-blue-200 text-blue-800"
-              count={currentlyHere.length}
-              emptyText="No guests" emptyColor="text-blue-400">
-              {currentlyHere.map(b => <DogCard key={b.id} booking={b} showDates />)}
-            </TodayCard>
+          <div className="card border-teal-200 bg-teal-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🌅</span>
+              <div className="font-semibold text-sm text-teal-800">Arriving Tomorrow</div>
+              <span className="badge bg-teal-200 text-teal-800 ml-auto">{arrivingTomorrow.length}</span>
+            </div>
+            {arrivingTomorrow.length === 0
+              ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
+              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-red-200 bg-red-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🔴</span>
+              <div className="font-semibold text-sm text-red-800">Departing Today</div>
+              <span className="badge bg-red-200 text-red-800 ml-auto">{departingToday.length}</span>
+            </div>
+            {departingToday.length === 0
+              ? <div className="text-xs text-red-500 text-center py-2">None today</div>
+              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-orange-200 bg-orange-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🌇</span>
+              <div className="font-semibold text-sm text-orange-800">Departing Tomorrow</div>
+              <span className="badge bg-orange-200 text-orange-800 ml-auto">{departingTomorrow.length}</span>
+            </div>
+            {departingTomorrow.length === 0
+              ? <div className="text-xs text-orange-400 text-center py-2">None tomorrow</div>
+              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
+            }
+          </div>
+          <div className="card border-blue-200 bg-blue-50 md:col-span-2">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🏠</span>
+              <div className="font-semibold text-sm text-blue-800">Currently Here</div>
+              <span className="badge bg-blue-200 text-blue-800 ml-auto">{currentlyHere.length}</span>
+            </div>
+            {currentlyHere.length === 0
+              ? <div className="text-xs text-blue-500 text-center py-2">No guests right now</div>
+              : <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">{currentlyHere.map(b => <DogCard key={b.id} booking={b} showDates />)}</div>
+            }
           </div>
         </div>
       )}
