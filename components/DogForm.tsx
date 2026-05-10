@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase'
 import AppShell from '@/components/AppShell'
 import { useRouter } from 'next/navigation'
@@ -13,6 +13,13 @@ interface DogFormData {
   notes: string
 }
 
+interface BookingSuggestion {
+  dog_names: string
+  customer_name: string
+  number_of_dogs: number
+  rate_per_dog_day: number
+}
+
 export default function DogFormContent({ dogId }: { dogId?: string }) {
   const isEdit = !!dogId
   const [form, setForm] = useState<DogFormData>({
@@ -23,8 +30,33 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [existingPhoto, setExistingPhoto] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [allBookings, setAllBookings] = useState<BookingSuggestion[]>([])
+  const [suggestions, setSuggestions] = useState<BookingSuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('bookings')
+        .select('dog_names, customer_name, number_of_dogs, rate_per_dog_day')
+        .eq('user_id', user.id)
+        .neq('status', 'cancelled')
+        .then(({ data }) => {
+          if (!data) return
+          const seen = new Set<string>()
+          const unique = data.filter(b => {
+            const key = (b.dog_names || '').trim()
+            if (!key || key === 'Imported' || seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          setAllBookings(unique)
+        })
+    })
+  }, [])
 
   useEffect(() => {
     if (dogId) {
@@ -43,6 +75,41 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
       })
     }
   }, [dogId])
+
+  function handleDogNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value
+    setForm(f => ({ ...f, dog_name: val }))
+    if (!val.trim()) { setSuggestions([]); setShowSuggestions(false); return }
+    const q = val.toLowerCase()
+    const matches = allBookings.filter(b =>
+      (b.dog_names || '').toLowerCase().includes(q) ||
+      (b.customer_name || '').toLowerCase().includes(q)
+    )
+    setSuggestions(matches)
+    setShowSuggestions(true)
+  }
+
+  function selectSuggestion(b: BookingSuggestion) {
+    setForm(f => ({
+      ...f,
+      dog_name: b.dog_names,
+      owner_name: b.customer_name,
+      number_of_dogs: String(b.number_of_dogs),
+      default_rate: String(b.rate_per_dog_day),
+    }))
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (suggestRef.current && !suggestRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   const set = (k: keyof DogFormData) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }))
@@ -104,11 +171,13 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
     <AppShell>
       <div className="mb-5">
         <h1 className="text-xl font-semibold">{isEdit ? 'Edit Dog Profile' : 'New Dog Profile'}</h1>
-        <p className="text-sm text-gray-500">Add a dog and their owner for quick booking</p>
+        <p className="text-sm text-gray-500">
+          {isEdit ? 'Update this dog profile' : 'Start typing a dog name to pull from existing bookings'}
+        </p>
       </div>
 
       <div className="card max-w-lg">
-        {/* Photo upload — large tap target on mobile */}
+        {/* Photo upload */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-5">
           <div className="w-28 h-28 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-emerald-50 flex items-center justify-center border-2 border-dashed border-emerald-200 flex-shrink-0">
             {photoPreview || existingPhoto ? (
@@ -126,10 +195,38 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           </div>
         </div>
 
-        {/* Dog name full width on mobile */}
+        {/* Dog name with type-ahead */}
         <div className="mb-4">
           <label className="label">Dog Name(s) *</label>
-          <input className="input text-base sm:text-sm" value={form.dog_name} onChange={set('dog_name')} placeholder="e.g. Toby or Mable & Piper" />
+          <div className="relative" ref={suggestRef}>
+            <input
+              className="input text-base sm:text-sm"
+              value={form.dog_name}
+              onChange={handleDogNameChange}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              placeholder="Type to search existing bookings…"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-50 mt-1 max-h-56 overflow-y-auto">
+                {suggestions.map((b, i) => (
+                  <div key={i}
+                    className="flex items-center justify-between px-3 py-3 hover:bg-emerald-50 cursor-pointer border-b border-gray-50 last:border-0"
+                    onMouseDown={() => selectSuggestion(b)}>
+                    <div>
+                      <div className="font-medium text-sm">{b.dog_names}</div>
+                      <div className="text-xs text-gray-400">👤 {b.customer_name} · {b.number_of_dogs} dog{b.number_of_dogs !== 1 ? 's' : ''} · ${b.rate_per_dog_day}/day</div>
+                    </div>
+                    <span className="text-xs text-emerald-600 font-medium">Use this →</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {!isEdit && allBookings.length > 0 && (
+            <div className="text-xs text-gray-400 mt-1">
+              {allBookings.length} existing booking{allBookings.length !== 1 ? 's' : ''} available to pull from
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -159,7 +256,6 @@ export default function DogFormContent({ dogId }: { dogId?: string }) {
           <textarea className="input text-base sm:text-sm" rows={3} value={form.notes} onChange={set('notes')} placeholder="e.g. Anxious around other dogs, needs extra attention…" />
         </div>
 
-        {/* Bigger buttons on mobile */}
         <div className="flex flex-col sm:flex-row gap-2">
           <button className="btn btn-primary justify-center py-3 sm:py-1.5 text-base sm:text-sm" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save Profile'}

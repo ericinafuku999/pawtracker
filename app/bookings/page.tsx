@@ -122,7 +122,6 @@ function BookingsContent() {
         </div>
       ) : (
         <>
-          {/* Filters — wrap on mobile */}
           <div className="flex gap-2 flex-wrap mb-4">
             <select className="input w-auto text-xs" onChange={sf('status')}><option value="">All Statuses</option><option>active</option><option>completed</option><option>cancelled</option></select>
             <select className="input w-auto text-xs" onChange={sf('payType')}><option value="">All Payment</option><option>Rover</option><option>Venmo</option></select>
@@ -153,10 +152,10 @@ function BookingsContent() {
                     </div>
                   </div>
                   <div className="card p-0 overflow-hidden">
-                    {/* Mobile: card-style list */}
+                    {/* Mobile card list */}
                     <div className="md:hidden divide-y divide-gray-50">
                       {monthBookings.map(b => (
-                        <div key={b.id} className="p-3">
+                        <div key={b.id} className="p-3" onDoubleClick={() => handleEdit(b.id)}>
                           <div className="flex items-start justify-between gap-2 mb-1">
                             <div>
                               <div className="font-medium text-sm">{b.dog_names || b.customer_name}</div>
@@ -169,7 +168,7 @@ function BookingsContent() {
                           </div>
                           <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
                             <span>{formatDate(b.arrival_date)} → {formatDate(b.departure_date)}</span>
-                            <span className="font-semibold text-gray-700">${b.amount_received.toFixed(2)} received</span>
+                            <span className="font-semibold text-gray-700">${b.amount_received.toFixed(2)}</span>
                           </div>
                           <div className="flex gap-2">
                             <button className="btn text-xs py-1.5 flex-1 justify-center" onClick={() => handleEdit(b.id)}>Edit</button>
@@ -180,7 +179,7 @@ function BookingsContent() {
                         </div>
                       ))}
                     </div>
-                    {/* Desktop: table */}
+                    {/* Desktop table with double-click */}
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full">
                         <thead><tr>
@@ -191,7 +190,10 @@ function BookingsContent() {
                         </tr></thead>
                         <tbody>
                           {monthBookings.map(b => (
-                            <tr key={b.id} className="hover:bg-gray-50">
+                            <tr key={b.id}
+                              className="hover:bg-gray-50 cursor-pointer select-none"
+                              onDoubleClick={() => handleEdit(b.id)}
+                              title="Double-click to edit">
                               <td className="td font-medium">{b.customer_name}</td>
                               <td className="td text-gray-600">{b.dog_names} <span className="text-gray-400 text-xs">({b.number_of_dogs})</span></td>
                               <td className="td whitespace-nowrap">{formatDate(b.arrival_date)}</td>
@@ -205,9 +207,9 @@ function BookingsContent() {
                               <td className="td">{sBadge(b.status)}</td>
                               <td className="td">
                                 <div className="flex gap-1">
-                                  <button className="btn text-xs py-1 px-2" onClick={() => handleEdit(b.id)}>Edit</button>
+                                  <button className="btn text-xs py-1 px-2" onClick={e => { e.stopPropagation(); handleEdit(b.id) }}>Edit</button>
                                   {b.status !== 'cancelled' && (
-                                    <button className="btn btn-danger text-xs py-1 px-2" onClick={() => setCancelId(b.id)}>✕</button>
+                                    <button className="btn btn-danger text-xs py-1 px-2" onClick={e => { e.stopPropagation(); setCancelId(b.id) }}>✕</button>
                                   )}
                                 </div>
                               </td>

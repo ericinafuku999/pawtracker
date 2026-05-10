@@ -187,7 +187,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       </div>
 
-      {/* Day headers — abbreviated on mobile */}
+      {/* Day headers */}
       <div className="grid grid-cols-7 mb-1">
         {['S','M','T','W','T','F','S'].map((d, i) => (
           <div key={i} className="text-center text-xs font-medium text-gray-400 py-1 md:hidden">{d}</div>
@@ -229,7 +229,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                     <DogCapacityBadge count={dogCount} />
                   </div>
                   <div className="space-y-0.5">
-                    {dayBookings.slice(0, compact ? 1 : 1).map(b => {
+                    {dayBookings.slice(0, 1).map(b => {
                       const isMatch = hasSearch && matchedIds.has(b.id)
                       const isNotMatch = hasSearch && !matchedIds.has(b.id)
                       return (
@@ -272,7 +272,10 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
                     return (
-                      <div key={b.id} className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0 ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                      <div key={b.id}
+                        className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0 cursor-pointer
+                          ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}
+                        onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
                         <div className="flex items-start gap-2 md:gap-3 flex-1 min-w-0">
                           <div className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${colorMap[b.id]}`}></div>
                           <div className="min-w-0">
@@ -284,6 +287,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
                               <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                             </div>
+                            <div className="text-xs text-gray-300 mt-0.5 hidden md:block">Double-click to edit</div>
                           </div>
                         </div>
                         <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
@@ -300,7 +304,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       ))}
 
-      {/* Legend — hidden on mobile to save space */}
+      {/* Legend — hidden on mobile */}
       {activeBookings.length > 0 && (
         <div className="mt-3 hidden md:flex flex-wrap gap-2">
           {activeBookings.slice(0, 8).map((b, i) => {

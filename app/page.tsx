@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 
 type Period = 'month' | 'quarter' | 'year' | 'all' | 'pick' | 'custom'
 
@@ -72,6 +73,7 @@ export default function Dashboard() {
   const [calSearch, setCalSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
+  const router = useRouter()
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -109,15 +111,37 @@ export default function Dashboard() {
     return profile?.photo_url || null
   }
 
+  function getDogProfileId(dogName: string) {
+    const profile = dogProfiles.find(d =>
+      d.dog_name.toLowerCase() === dogName.toLowerCase() ||
+      dogName.toLowerCase().includes(d.dog_name.toLowerCase())
+    )
+    return profile?.id || null
+  }
+
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const photo = getDogPhoto(booking.dog_names)
+    const profileId = getDogProfileId(booking.dog_names)
+
+    function handleClick() {
+      if (profileId) router.push(`/dogs/${profileId}`)
+      else router.push(`/dogs/new`)
+    }
+
     return (
-      <div className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:shadow-sm transition-shadow">
-        <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100">
+      <div
+        onClick={handleClick}
+        className="flex items-center gap-3 p-2.5 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-md transition-all cursor-pointer group">
+        <div className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative">
           {photo
             ? <img src={photo} alt={booking.dog_names} className="w-full h-full object-cover" />
             : <span className="text-xl">🐾</span>
           }
+          {!photo && (
+            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+              <span className="text-white text-xs font-bold">+ Photo</span>
+            </div>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm truncate">{booking.dog_names}</div>
@@ -125,6 +149,9 @@ export default function Dashboard() {
           {showDates && (
             <div className="text-xs text-gray-400">{formatDate(booking.arrival_date)} → {formatDate(booking.departure_date)}</div>
           )}
+          <div className="text-xs text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            {profileId ? 'Edit profile →' : 'Create profile →'}
+          </div>
         </div>
         <span className={`badge text-xs ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
@@ -246,7 +273,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* Metrics — 2 cols on mobile, 4 on desktop */}
+      {/* Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         {metrics.map(m => (
           <div key={m.label} className="metric-card">
@@ -257,7 +284,7 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Charts — stack on mobile */}
+      {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         <div className="card">
           <div className="font-medium text-sm mb-3">Revenue Received by Month</div>
@@ -303,7 +330,7 @@ export default function Dashboard() {
         <BookingCalendar bookings={bookings} searchQuery={calSearch} />
       </div>
 
-      {/* Recent bookings + expenses — stack on mobile */}
+      {/* Recent bookings + expenses */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
           <div className="flex justify-between items-center mb-3">
@@ -317,7 +344,7 @@ export default function Dashboard() {
               <thead><tr><th className="th">Customer</th><th className="th">Dogs</th><th className="th">Received</th><th className="th">Status</th></tr></thead>
               <tbody>
                 {bookings.slice(0, 5).map(b => (
-                  <tr key={b.id} className="hover:bg-gray-50">
+                  <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
                     <td className="td font-medium">{b.customer_name}</td>
                     <td className="td text-gray-500">{b.dog_names}</td>
                     <td className="td">{formatCurrency(b.amount_received)}</td>
