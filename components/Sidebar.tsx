@@ -24,7 +24,7 @@ const navItems = [
     { href: '/expenses/new', label: 'Add Expense', icon: '+' },
   ]},
   { section: 'Tools', items: [
-    { href: '/import', label: 'Import CSV', icon: '↑' },
+    { href: '/import', label: 'Import Data', icon: '↑' },
   ]},
 ]
 
