@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Booking, Expense } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
+import { exportToExcel } from '@/lib/exportExcel'
 import AppShell from '@/components/AppShell'
 
 type Tab = 'rev' | 'pay' | 'exp' | 'net' | 'cust' | 'cancel'
@@ -93,11 +94,22 @@ export default function ReportsPage() {
 
   return (
     <AppShell>
-      <div className="mb-5"><h1 className="text-xl font-semibold">Reports</h1><p className="text-sm text-gray-500">Revenue, expenses, and summaries</p></div>
-      <div className="flex border-b border-gray-200 mb-5 gap-0">
+      <div className="flex items-start justify-between mb-5">
+        <div>
+          <h1 className="text-xl font-semibold">Reports</h1>
+          <p className="text-sm text-gray-500">Revenue, expenses, and summaries</p>
+        </div>
+        <button
+          className="btn btn-primary text-xs flex items-center gap-1.5"
+          onClick={() => exportToExcel(bookings, expenses, 'PawTracker')}>
+          📊 Export to Excel
+        </button>
+      </div>
+
+      <div className="flex border-b border-gray-200 mb-5 gap-0 overflow-x-auto">
         {tabs.map(t => (
           <button key={t.k} onClick={() => setTab(t.k)}
-            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors ${tab === t.k ? 'border-emerald-500 text-emerald-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            className={`px-4 py-2 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${tab === t.k ? 'border-emerald-500 text-emerald-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             {t.label}
           </button>
         ))}

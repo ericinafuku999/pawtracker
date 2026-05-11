@@ -8,6 +8,7 @@ import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { exportToExcel } from '@/lib/exportExcel'
 
 type Period = 'month' | 'quarter' | 'year' | 'all' | 'pick' | 'custom'
 
@@ -419,9 +420,16 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="mb-4">
-        <h1 className="text-xl font-semibold">Dashboard</h1>
-        <p className="text-sm text-gray-500">Cash flow and performance overview</p>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <p className="text-sm text-gray-500">Cash flow and performance overview</p>
+        </div>
+        <button
+          className="btn btn-primary text-xs flex items-center gap-1.5"
+          onClick={() => exportToExcel(bookings, expenses, 'PawTracker')}>
+          📊 Export to Excel
+        </button>
       </div>
 
       {/* Persistent unpaid banner */}
