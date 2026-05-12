@@ -28,6 +28,7 @@ export interface Booking {
   status: BookingStatus
   cancellation_reason: string | null
   notes: string | null
+  tip_amount: number | null
   month_allocations: MonthAllocation[]
   created_at: string
   updated_at: string

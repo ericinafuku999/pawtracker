@@ -66,6 +66,9 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const [current, setCurrent] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [localBookings, setLocalBookings] = useState<Booking[]>(bookings)
+  const [tipBookingId, setTipBookingId] = useState<string | null>(null)
+  const [tipAmount, setTipAmount] = useState('')
+  const [tipSaving, setTipSaving] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -124,6 +127,42 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         ? { ...b, payment_status: 'paid', amount_received: booking.total_revenue }
         : b
     ))
+    if (onRefresh) onRefresh()
+  }
+
+  function openTip(e: React.MouseEvent, bookingId: string) {
+    e.stopPropagation()
+    setTipBookingId(bookingId)
+    setTipAmount('')
+  }
+
+  async function saveTip(booking: Booking, markFullyPaid: boolean) {
+    const tip = parseFloat(tipAmount) || 0
+    if (tip <= 0) { setTipBookingId(null); return }
+    setTipSaving(true)
+
+    const newAmountReceived = booking.amount_received + tip
+    const newTipAmount = (booking.tip_amount || 0) + tip
+    const newPayStatus = markFullyPaid ? 'paid'
+      : newAmountReceived >= booking.total_revenue ? 'paid'
+      : newAmountReceived > 0 ? 'partially paid'
+      : booking.payment_status
+
+    await supabase.from('bookings').update({
+      amount_received: newAmountReceived,
+      tip_amount: newTipAmount,
+      payment_status: newPayStatus,
+      updated_at: new Date().toISOString(),
+    }).eq('id', booking.id)
+
+    setLocalBookings(prev => prev.map(b =>
+      b.id === booking.id
+        ? { ...b, amount_received: newAmountReceived, tip_amount: newTipAmount, payment_status: newPayStatus }
+        : b
+    ))
+    setTipBookingId(null)
+    setTipAmount('')
+    setTipSaving(false)
     if (onRefresh) onRefresh()
   }
 
@@ -324,65 +363,104 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
               {selectedDayBookings.length === 0 ? (
                 <div className="px-4 py-5 text-center text-gray-400 text-sm">No bookings on this day</div>
               ) : (
-                <div className="overflow-y-auto" style={{ maxHeight: '320px' }}>
+                <div className="overflow-y-auto" style={{ maxHeight: '380px' }}>
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)
                     const profile = getDogProfile(b)
                     const isDeparting = sameDay(parseD(b.departure_date), selectedDay!)
+                    const isTipping = tipBookingId === b.id
                     return (
                       <div key={b.id}
-                        className={`flex items-start justify-between px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
+                        className={`px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
                           ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
-                        <div className="flex items-start gap-3 flex-1 min-w-0">
-                          {/* Dog photo — click opens profile */}
-                          <div
-                            className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all relative group"
-                            onClick={e => handleProfileClick(e, b)}
-                            title={profile ? `View ${b.dog_names}'s profile` : `Create profile for ${b.dog_names}`}>
-                            {profile?.photo_url
-                              ? <img src={profile.photo_url} alt={b.dog_names} className="w-full h-full object-cover" />
-                              : <span className="text-xl">🐾</span>
-                            }
-                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                              <span className="text-white text-xs font-bold">{profile ? '👤' : '+'}</span>
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            {/* Dog photo */}
+                            <div
+                              className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all relative group"
+                              onClick={e => handleProfileClick(e, b)}>
+                              {profile?.photo_url
+                                ? <img src={profile.photo_url} alt={b.dog_names} className="w-full h-full object-cover" />
+                                : <span className="text-xl">🐾</span>
+                              }
+                              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                                <span className="text-white text-xs font-bold">{profile ? '👤' : '+'}</span>
+                              </div>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-semibold text-sm truncate">
+                                  {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
+                                </span>
+                                {isDeparting && <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">Departing</span>}
+                                {!profile && <span className="text-xs text-gray-400 font-normal flex-shrink-0">(no profile)</span>}
+                              </div>
+                              <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
+                              <div className="text-xs text-gray-400">
+                                {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}
+                                {b.tip_amount && b.tip_amount > 0
+                                  ? <span className="text-emerald-600 font-medium"> + {formatCurrency(b.tip_amount)} tip</span>
+                                  : null
+                                }
+                              </div>
+                              <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                <span className={`badge text-xs ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
+                                <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
+                                <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
+                                {b.tip_amount && b.tip_amount > 0
+                                  ? <span className="badge text-xs bg-emerald-100 text-emerald-700">🎁 tip</span>
+                                  : null
+                                }
+                              </div>
                             </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-semibold text-sm truncate">
-                                {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
-                              </span>
-                              {isDeparting && <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">Departing</span>}
-                              {!profile && <span className="text-xs text-gray-400 font-normal flex-shrink-0">(no profile)</span>}
-                            </div>
-                            <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
-                            <div className="text-xs text-gray-400">{formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}</div>
-                            <div className="flex items-center gap-1 mt-1 flex-wrap">
-                              <span className={`badge text-xs ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span>
-                              <span className={`badge text-xs ${b.payment_status === 'paid' ? 'badge-green' : b.payment_status === 'partially paid' ? 'badge-amber' : 'badge-gray'}`}>{b.payment_status}</span>
-                              <span className={`badge text-xs ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
-                            </div>
+                          <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
+                            <button onClick={e => handleEditBooking(e, b.id)} className="btn text-xs py-1.5 px-2 md:py-1">Edit</button>
+                            {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
+                              <button onClick={e => markPaid(e, b)} className="btn text-xs py-1.5 px-2 md:py-1 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">✓ Paid</button>
+                            )}
+                            <button onClick={e => openTip(e, b.id)} className="btn text-xs py-1.5 px-2 md:py-1 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100">🎁 Tip</button>
+                            <button onClick={e => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-1 flex-shrink-0 ml-2">
-                          <button
-                            onClick={e => handleEditBooking(e, b.id)}
-                            className="btn text-xs py-1.5 px-2 md:py-1">
-                            Edit
-                          </button>
-                          {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
-                            <button
-                              onClick={e => markPaid(e, b)}
-                              className="btn text-xs py-1.5 px-2 md:py-1 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">
-                              ✓ Paid
-                            </button>
-                          )}
-                          <button
-                            onClick={e => { e.stopPropagation(); deleteBooking(b.id) }}
-                            className="btn btn-danger text-xs py-1.5 px-2 md:py-1">
-                            Del
-                          </button>
-                        </div>
+
+                        {/* Inline tip input */}
+                        {isTipping && (
+                          <div className="mt-3 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
+                            <div className="text-xs font-medium text-gray-600 mb-2">Add tip for {b.dog_names}</div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm text-gray-400">$</span>
+                              <input
+                                className="input text-sm py-1.5 w-28"
+                                type="number"
+                                placeholder="0.00"
+                                value={tipAmount}
+                                onChange={e => setTipAmount(e.target.value)}
+                                autoFocus
+                              />
+                              <button onClick={() => { setTipBookingId(null); setTipAmount('') }} className="btn text-xs py-1.5 px-2">Cancel</button>
+                            </div>
+                            {tipAmount && parseFloat(tipAmount) > 0 && (
+                              <div className="text-xs text-gray-500 mb-2">
+                                New total received: {formatCurrency(b.amount_received + parseFloat(tipAmount))} of {formatCurrency(b.total_revenue)}
+                              </div>
+                            )}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => saveTip(b, true)}
+                                disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                className="btn text-xs py-1.5 px-3 btn-primary">
+                                {tipSaving ? 'Saving…' : '✓ Save tip — mark fully paid'}
+                              </button>
+                              <button
+                                onClick={() => saveTip(b, false)}
+                                disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                className="btn text-xs py-1.5 px-3">
+                                {tipSaving ? 'Saving…' : 'Save tip only'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )
                   })}

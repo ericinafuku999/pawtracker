@@ -29,6 +29,9 @@ function BookingsContent() {
   const [bulkPayStatus, setBulkPayStatus] = useState('')
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [tipBookingId, setTipBookingId] = useState<string | null>(null)
+  const [tipAmount, setTipAmount] = useState('')
+  const [tipSaving, setTipSaving] = useState(false)
   const supabase = createClient()
   const router = useRouter()
   const tableRef = useRef<HTMLDivElement>(null)
@@ -71,6 +74,36 @@ function BookingsContent() {
       amount_received: b.total_revenue,
       updated_at: new Date().toISOString()
     }).eq('id', b.id)
+    load()
+  }
+
+  function openTip(id: string) {
+    setTipBookingId(id)
+    setTipAmount('')
+  }
+
+  async function saveTip(booking: Booking, markFullyPaid: boolean) {
+    const tip = parseFloat(tipAmount) || 0
+    if (tip <= 0) { setTipBookingId(null); return }
+    setTipSaving(true)
+
+    const newAmountReceived = booking.amount_received + tip
+    const newTipAmount = (booking.tip_amount || 0) + tip
+    const newPayStatus = markFullyPaid ? 'paid'
+      : newAmountReceived >= booking.total_revenue ? 'paid'
+      : newAmountReceived > 0 ? 'partially paid'
+      : booking.payment_status
+
+    await supabase.from('bookings').update({
+      amount_received: newAmountReceived,
+      tip_amount: newTipAmount,
+      payment_status: newPayStatus,
+      updated_at: new Date().toISOString(),
+    }).eq('id', booking.id)
+
+    setTipBookingId(null)
+    setTipAmount('')
+    setTipSaving(false)
     load()
   }
 
@@ -117,7 +150,6 @@ function BookingsContent() {
     const updates: any = { updated_at: new Date().toISOString() }
     if (bulkPayStatus) updates.payment_status = bulkPayStatus
     if (bulkStatus) updates.status = bulkStatus
-    // If marking as paid, also set amount_received to total_revenue
     if (bulkPayStatus === 'paid') {
       for (const id of selectedIds) {
         const booking = bookings.find(b => b.id === id)
@@ -148,8 +180,8 @@ function BookingsContent() {
   }
 
   function exportCSV() {
-    const rows = filtered.map(b => [b.customer_name, b.dog_names, b.number_of_dogs, b.arrival_date, b.departure_date, b.number_of_days, b.dog_days, b.rate_per_dog_day, b.total_revenue, b.payment_type, b.payment_status, b.amount_received, b.status, b.cancellation_reason || '', b.notes || ''].join(','))
-    const csv = ['Customer,Dogs,NumDogs,Arrival,Departure,Days,DogDays,Rate,Revenue,PayType,PayStatus,Received,Status,CancelReason,Notes', ...rows].join('\n')
+    const rows = filtered.map(b => [b.customer_name, b.dog_names, b.number_of_dogs, b.arrival_date, b.departure_date, b.number_of_days, b.dog_days, b.rate_per_dog_day, b.total_revenue, b.payment_type, b.payment_status, b.amount_received, b.tip_amount || 0, b.status, b.cancellation_reason || '', b.notes || ''].join(','))
+    const csv = ['Customer,Dogs,NumDogs,Arrival,Departure,Days,DogDays,Rate,Revenue,PayType,PayStatus,Received,Tip,Status,CancelReason,Notes', ...rows].join('\n')
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
     a.download = 'bookings.csv'; a.click()
@@ -254,15 +286,46 @@ function BookingsContent() {
                                   {pBadge(b.payment_status)}
                                 </div>
                               </div>
-                              <div className="flex items-center justify-between text-xs text-gray-400 mt-1 mb-2">
+                              <div className="flex items-center justify-between text-xs text-gray-400 mt-1 mb-1">
                                 <span>{formatDate(b.arrival_date)} → {formatDate(b.departure_date)}</span>
-                                <span className="font-semibold text-gray-700">${b.amount_received.toFixed(2)}</span>
+                                <span className="font-semibold text-gray-700">
+                                  ${b.amount_received.toFixed(2)}
+                                  {b.tip_amount && b.tip_amount > 0 ? <span className="text-emerald-600"> +${b.tip_amount.toFixed(2)} tip</span> : null}
+                                </span>
                               </div>
+                              {/* Tip inline input mobile */}
+                              {tipBookingId === b.id && (
+                                <div className="bg-violet-50 border border-violet-100 rounded-lg p-3 mb-2">
+                                  <div className="text-xs font-medium text-violet-700 mb-2">Add tip for {b.dog_names}</div>
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-sm text-gray-400">$</span>
+                                    <input className="input text-sm py-1.5 w-24" type="number" placeholder="0.00"
+                                      value={tipAmount} onChange={e => setTipAmount(e.target.value)} autoFocus />
+                                    <button onClick={() => { setTipBookingId(null); setTipAmount('') }} className="btn text-xs py-1.5 px-2">✕</button>
+                                  </div>
+                                  {tipAmount && parseFloat(tipAmount) > 0 && (
+                                    <div className="text-xs text-gray-500 mb-2">
+                                      New total: ${(b.amount_received + parseFloat(tipAmount)).toFixed(2)} of ${b.total_revenue.toFixed(2)}
+                                    </div>
+                                  )}
+                                  <div className="flex gap-2">
+                                    <button onClick={() => saveTip(b, true)} disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                      className="btn btn-primary text-xs py-1.5 flex-1 justify-center">
+                                      {tipSaving ? 'Saving…' : '✓ Paid + tip'}
+                                    </button>
+                                    <button onClick={() => saveTip(b, false)} disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                      className="btn text-xs py-1.5 flex-1 justify-center">
+                                      {tipSaving ? 'Saving…' : 'Tip only'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                               <div className="flex gap-2">
                                 <button className="btn text-xs py-1.5 flex-1 justify-center" onClick={() => handleEdit(b.id)}>Edit</button>
                                 {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
-                                  <button className="btn text-xs py-1.5 flex-1 justify-center bg-emerald-50 text-emerald-700 border-emerald-200" onClick={() => markPaid(b)}>✓ Mark Paid</button>
+                                  <button className="btn text-xs py-1.5 flex-1 justify-center bg-emerald-50 text-emerald-700 border-emerald-200" onClick={() => markPaid(b)}>✓ Paid</button>
                                 )}
+                                <button className="btn text-xs py-1.5 flex-1 justify-center bg-violet-50 text-violet-700 border-violet-200" onClick={() => openTip(b.id)}>🎁 Tip</button>
                                 {b.status !== 'cancelled' && (
                                   <button className="btn btn-danger text-xs py-1.5 px-3 justify-center" onClick={() => setCancelId(b.id)}>✕</button>
                                 )}
@@ -279,41 +342,88 @@ function BookingsContent() {
                           <th className="th w-8"></th>
                           <th className="th">Customer</th><th className="th">Dogs</th><th className="th">Arrival</th>
                           <th className="th">Departure</th><th className="th">Dog-Days</th><th className="th">Rate</th>
-                          <th className="th">Revenue</th><th className="th">Received</th><th className="th">Type</th>
-                          <th className="th">Pay</th><th className="th">Status</th><th className="th"></th>
+                          <th className="th">Revenue</th><th className="th">Received</th><th className="th">Tip</th>
+                          <th className="th">Type</th><th className="th">Pay</th><th className="th">Status</th><th className="th"></th>
                         </tr></thead>
                         <tbody>
                           {monthBookings.map(b => (
-                            <tr key={b.id}
-                              className={`cursor-pointer select-none ${selectedIds.has(b.id) ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}
-                              onDoubleClick={() => handleEdit(b.id)}
-                              title="Double-click to edit">
-                              <td className="td">
-                                <input type="checkbox" className="w-4 h-4 accent-emerald-500"
-                                  checked={selectedIds.has(b.id)}
-                                  onChange={() => toggleSelect(b.id)}
-                                  onClick={e => e.stopPropagation()} />
-                              </td>
-                              <td className="td font-medium">{b.customer_name}</td>
-                              <td className="td text-gray-600">{b.dog_names} <span className="text-gray-400 text-xs">({b.number_of_dogs})</span></td>
-                              <td className="td whitespace-nowrap">{formatDate(b.arrival_date)}</td>
-                              <td className="td whitespace-nowrap">{formatDate(b.departure_date)}</td>
-                              <td className="td font-semibold">{b.dog_days}</td>
-                              <td className="td">${b.rate_per_dog_day}/day</td>
-                              <td className="td font-semibold">{formatCurrency(b.total_revenue)}</td>
-                              <td className={`td ${b.status !== 'cancelled' && b.amount_received < b.total_revenue ? 'text-red-500' : ''}`}>{formatCurrency(b.amount_received)}</td>
-                              <td className="td"><span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span></td>
-                              <td className="td">{pBadge(b.payment_status)}</td>
-                              <td className="td">{sBadge(b.status)}</td>
-                              <td className="td">
-                                <div className="flex gap-1">
-                                  <button className="btn text-xs py-1 px-2" onClick={e => { e.stopPropagation(); handleEdit(b.id) }}>Edit</button>
-                                  {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
-                                    <button className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" onClick={e => { e.stopPropagation(); markPaid(b) }}>✓ Paid</button>
-                                  )}
-                                  {b.status !== 'cancelled' && (
-                                    <button className="btn btn-danger text-xs py-1 px-2" onClick={e => { e.stopPropagation(); setCancelId(b.id) }}>✕</button>
-                                  )}
+                            <tr key={b.id}>
+                              <td className="td" colSpan={14} style={{ padding: 0 }}>
+                                <div className={`${selectedIds.has(b.id) ? 'bg-emerald-50' : ''}`}>
+                                  <table className="w-full">
+                                    <tbody>
+                                      <tr className={`cursor-pointer select-none hover:bg-gray-50`}
+                                        onDoubleClick={() => handleEdit(b.id)}>
+                                        <td className="td w-8">
+                                          <input type="checkbox" className="w-4 h-4 accent-emerald-500"
+                                            checked={selectedIds.has(b.id)}
+                                            onChange={() => toggleSelect(b.id)}
+                                            onClick={e => e.stopPropagation()} />
+                                        </td>
+                                        <td className="td font-medium">{b.customer_name}</td>
+                                        <td className="td text-gray-600">{b.dog_names} <span className="text-gray-400 text-xs">({b.number_of_dogs})</span></td>
+                                        <td className="td whitespace-nowrap">{formatDate(b.arrival_date)}</td>
+                                        <td className="td whitespace-nowrap">{formatDate(b.departure_date)}</td>
+                                        <td className="td font-semibold">{b.dog_days}</td>
+                                        <td className="td">${b.rate_per_dog_day}/day</td>
+                                        <td className="td font-semibold">{formatCurrency(b.total_revenue)}</td>
+                                        <td className={`td ${b.status !== 'cancelled' && b.amount_received < b.total_revenue ? 'text-red-500' : ''}`}>
+                                          {formatCurrency(b.amount_received)}
+                                        </td>
+                                        <td className="td">
+                                          {b.tip_amount && b.tip_amount > 0
+                                            ? <span className="badge bg-emerald-100 text-emerald-700 text-xs">🎁 {formatCurrency(b.tip_amount)}</span>
+                                            : <span className="text-gray-300 text-xs">—</span>
+                                          }
+                                        </td>
+                                        <td className="td"><span className={`badge ${b.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{b.payment_type}</span></td>
+                                        <td className="td">{pBadge(b.payment_status)}</td>
+                                        <td className="td">{sBadge(b.status)}</td>
+                                        <td className="td">
+                                          <div className="flex gap-1">
+                                            <button className="btn text-xs py-1 px-2" onClick={e => { e.stopPropagation(); handleEdit(b.id) }}>Edit</button>
+                                            {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
+                                              <button className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" onClick={e => { e.stopPropagation(); markPaid(b) }}>✓ Paid</button>
+                                            )}
+                                            <button className="btn text-xs py-1 px-2 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100" onClick={e => { e.stopPropagation(); openTip(b.id) }}>🎁 Tip</button>
+                                            {b.status !== 'cancelled' && (
+                                              <button className="btn btn-danger text-xs py-1 px-2" onClick={e => { e.stopPropagation(); setCancelId(b.id) }}>✕</button>
+                                            )}
+                                          </div>
+                                        </td>
+                                      </tr>
+                                      {/* Inline tip row */}
+                                      {tipBookingId === b.id && (
+                                        <tr>
+                                          <td colSpan={14} className="px-4 py-3 bg-violet-50 border-t border-violet-100">
+                                            <div className="flex items-center gap-3 flex-wrap">
+                                              <span className="text-xs font-medium text-violet-700">Add tip for {b.dog_names}:</span>
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-sm text-gray-400">$</span>
+                                                <input className="input text-sm py-1 w-24" type="number" placeholder="0.00"
+                                                  value={tipAmount} onChange={e => setTipAmount(e.target.value)} autoFocus />
+                                              </div>
+                                              {tipAmount && parseFloat(tipAmount) > 0 && (
+                                                <span className="text-xs text-gray-500">
+                                                  New total: {formatCurrency(b.amount_received + parseFloat(tipAmount))} of {formatCurrency(b.total_revenue)}
+                                                </span>
+                                              )}
+                                              <button onClick={() => saveTip(b, true)} disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                                className="btn btn-primary text-xs py-1.5 px-3">
+                                                {tipSaving ? 'Saving…' : '✓ Save tip — mark fully paid'}
+                                              </button>
+                                              <button onClick={() => saveTip(b, false)} disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                                className="btn text-xs py-1.5 px-3">
+                                                {tipSaving ? 'Saving…' : 'Save tip only'}
+                                              </button>
+                                              <button onClick={() => { setTipBookingId(null); setTipAmount('') }}
+                                                className="btn text-xs py-1.5 px-2">Cancel</button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      )}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </td>
                             </tr>
