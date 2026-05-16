@@ -130,34 +130,27 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
     if (onRefresh) onRefresh()
   }
 
-  function openTip(e: React.MouseEvent, bookingId: string) {
+  function openTip(e: React.MouseEvent, booking: Booking) {
     e.stopPropagation()
-    setTipBookingId(bookingId)
-    setTipAmount('')
+    setTipBookingId(booking.id)
+    setTipAmount(String(booking.tip_amount || 0))
   }
 
   async function saveTip(booking: Booking, markFullyPaid: boolean) {
     const tip = parseFloat(tipAmount) || 0
-    if (tip <= 0) { setTipBookingId(null); return }
     setTipSaving(true)
 
-    const newAmountReceived = booking.amount_received + tip
-    const newTipAmount = (booking.tip_amount || 0) + tip
-    const newPayStatus = markFullyPaid ? 'paid'
-      : newAmountReceived >= booking.total_revenue ? 'paid'
-      : newAmountReceived > 0 ? 'partially paid'
-      : booking.payment_status
+    const newPayStatus = markFullyPaid ? 'paid' : booking.payment_status
 
     await supabase.from('bookings').update({
-      amount_received: newAmountReceived,
-      tip_amount: newTipAmount,
+      tip_amount: tip,
       payment_status: newPayStatus,
       updated_at: new Date().toISOString(),
     }).eq('id', booking.id)
 
     setLocalBookings(prev => prev.map(b =>
       b.id === booking.id
-        ? { ...b, amount_received: newAmountReceived, tip_amount: newTipAmount, payment_status: newPayStatus }
+        ? { ...b, tip_amount: tip, payment_status: newPayStatus }
         : b
     ))
     setTipBookingId(null)
@@ -375,7 +368,6 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                           ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
-                            {/* Dog photo */}
                             <div
                               className="w-12 h-12 rounded-xl overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 cursor-pointer hover:ring-2 hover:ring-emerald-400 transition-all relative group"
                               onClick={e => handleProfileClick(e, b)}>
@@ -397,7 +389,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               </div>
                               <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
                               <div className="text-xs text-gray-400">
-                                {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · Expected: {formatCurrency(b.amount_received - (b.tip_amount || 0))}
+                                {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · Expected: {formatCurrency(b.amount_received)}
                                 {b.tip_amount && b.tip_amount > 0
                                   ? <span className="text-emerald-600 font-medium"> + {formatCurrency(b.tip_amount)} tip</span>
                                   : null
@@ -419,7 +411,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             {b.payment_status !== 'paid' && b.status !== 'cancelled' && (
                               <button onClick={e => markPaid(e, b)} className="btn text-xs py-1.5 px-2 md:py-1 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">✓ Paid</button>
                             )}
-                            <button onClick={e => openTip(e, b.id)} className="btn text-xs py-1.5 px-2 md:py-1 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100">🎁 Tip</button>
+                            <button onClick={e => openTip(e, b)} className="btn text-xs py-1.5 px-2 md:py-1 bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100">🎁 Tip</button>
                             <button onClick={e => { e.stopPropagation(); deleteBooking(b.id) }} className="btn btn-danger text-xs py-1.5 px-2 md:py-1">Del</button>
                           </div>
                         </div>
@@ -427,7 +419,10 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                         {/* Inline tip input */}
                         {isTipping && (
                           <div className="mt-3 pt-3 border-t border-gray-100" onClick={e => e.stopPropagation()}>
-                            <div className="text-xs font-medium text-gray-600 mb-2">Add tip for {b.dog_names}</div>
+                            <div className="text-xs font-medium text-gray-600 mb-2">
+                              Set tip for {b.dog_names}
+                              {b.tip_amount && b.tip_amount > 0 ? ` (currently ${formatCurrency(b.tip_amount)})` : ''}
+                            </div>
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm text-gray-400">$</span>
                               <input
@@ -440,23 +435,23 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               />
                               <button onClick={() => { setTipBookingId(null); setTipAmount('') }} className="btn text-xs py-1.5 px-2">Cancel</button>
                             </div>
-                            {tipAmount && parseFloat(tipAmount) > 0 && (
+                            {tipAmount !== '' && (
                               <div className="text-xs text-gray-500 mb-2">
-                                New total received: {formatCurrency(b.amount_received + parseFloat(tipAmount))} of {formatCurrency(b.total_revenue)}
+                                Expected: {formatCurrency(b.amount_received)} + Tip: {formatCurrency(parseFloat(tipAmount) || 0)} = {formatCurrency(b.amount_received + (parseFloat(tipAmount) || 0))}
                               </div>
                             )}
                             <div className="flex gap-2">
                               <button
                                 onClick={() => saveTip(b, true)}
-                                disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                disabled={tipSaving}
                                 className="btn text-xs py-1.5 px-3 btn-primary">
-                                {tipSaving ? 'Saving…' : '✓ Save tip — mark fully paid'}
+                                {tipSaving ? 'Saving…' : '✓ Save & mark paid'}
                               </button>
                               <button
                                 onClick={() => saveTip(b, false)}
-                                disabled={tipSaving || !tipAmount || parseFloat(tipAmount) <= 0}
+                                disabled={tipSaving}
                                 className="btn text-xs py-1.5 px-3">
-                                {tipSaving ? 'Saving…' : 'Save tip only'}
+                                {tipSaving ? 'Saving…' : 'Save tip'}
                               </button>
                             </div>
                           </div>

@@ -21,6 +21,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
     customer_name: '', dog_names: '', number_of_dogs: '1', rate_per_dog_day: '50',
     arrival_date: '', departure_date: '', dog_days_override: '',
     payment_type: 'Rover', payment_status: 'unpaid', amount_received: '0',
+    tip_amount: '0',
     status: 'active', cancellation_reason: '', notes: ''
   })
   const [calc, setCalc] = useState<{ days: number; dogDays: number; revenue: number; splits: any[] } | null>(null)
@@ -103,8 +104,8 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
             arrival_date: b.arrival_date, departure_date: b.departure_date,
             dog_days_override: b.dog_days_override ? String(b.dog_days_override) : '',
             payment_type: b.payment_type, payment_status: b.payment_status,
-            amount_received: String(b.amount_received), status: b.status,
-            cancellation_reason: b.cancellation_reason || '', notes: b.notes || ''
+            amount_received: String(b.amount_received), tip_amount: String(b.tip_amount || 0),
+            status: b.status, cancellation_reason: b.cancellation_reason || '', notes: b.notes || ''
           })
         }
       })
@@ -156,6 +157,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       payment_type: form.payment_type as any,
       payment_status: form.payment_status as any,
       amount_received: parseFloat(form.amount_received) || 0,
+      tip_amount: parseFloat(form.tip_amount) || 0,
       status: form.status as any,
       cancellation_reason: form.cancellation_reason || null,
       notes: form.notes || null,
@@ -174,6 +176,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
         customer_name: '', dog_names: '', number_of_dogs: '1', rate_per_dog_day: '50',
         arrival_date: '', departure_date: '', dog_days_override: '',
         payment_type: 'Rover', payment_status: 'unpaid', amount_received: '0',
+        tip_amount: '0',
         status: 'active', cancellation_reason: '', notes: ''
       })
       setSelectedDog(null)
@@ -292,7 +295,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Payment Type</label>
             <select className="input text-base sm:text-sm" value={form.payment_type} onChange={set('payment_type')}>
               <option>Rover</option><option>Venmo</option>
@@ -303,7 +306,18 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
               <option>unpaid</option><option>partially paid</option><option>paid</option>
             </select>
           </div>
-          <div><label className="label">Expected Amount ($)</label><input className="input text-base sm:text-sm" type="number" value={form.amount_received} onChange={set('amount_received')} /></div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div>
+            <label className="label">Expected Amount ($)</label>
+            <input className="input text-base sm:text-sm" type="number" value={form.amount_received} onChange={set('amount_received')} />
+            <div className="text-xs text-gray-400 mt-1">What you expect to receive after Rover's cut etc.</div>
+          </div>
+          <div>
+            <label className="label">Tip ($)</label>
+            <input className="input text-base sm:text-sm" type="number" value={form.tip_amount} onChange={set('tip_amount')} placeholder="0" />
+            <div className="text-xs text-gray-400 mt-1">Added on top of expected amount.</div>
+          </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Booking Status</label>
