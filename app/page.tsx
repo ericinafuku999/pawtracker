@@ -196,7 +196,7 @@ export default function Dashboard() {
     const t = new Date(); t.setHours(0,0,0,0)
     return dep < t
   })
-  const totalOwed = persistentUnpaid.reduce((s, b) => s + (b.total_revenue - b.amount_received), 0)
+  const totalOwed = persistentUnpaid.reduce((s, b) => s + b.amount_received, 0)
 
   function getProfile(booking: Booking): DogProfile | null {
     if ((booking.customer_name || '').toLowerCase() !== 'imported' && (booking.customer_name || '').trim() !== '') {
@@ -469,7 +469,7 @@ export default function Dashboard() {
                   <span className="text-xs text-gray-400 ml-2 hidden sm:inline">· {b.customer_name} · {formatDate(b.departure_date)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-amber-700 font-medium">{formatCurrency(b.total_revenue - b.amount_received)} owed</span>
+                  <span className="text-xs text-amber-700 font-medium">{formatCurrency(b.amount_received)} expected</span>
                   <button onClick={() => markOnePaid(b.id)} className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200">✓ Paid</button>
                 </div>
               </div>
@@ -634,7 +634,7 @@ export default function Dashboard() {
             <p className="text-sm text-gray-400">No bookings yet. <Link href="/bookings/new" className="text-emerald-600">Add one →</Link></p>
           ) : (
             <table className="w-full">
-              <thead><tr><th className="th">Customer</th><th className="th">Dogs</th><th className="th">Received</th><th className="th">Status</th></tr></thead>
+              <thead><tr><th className="th">Customer</th><th className="th">Dogs</th><th className="th">Expected</th><th className="th">Status</th></tr></thead>
               <tbody>
                 {bookings.slice(0, 5).map(b => (
                   <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onDoubleClick={() => router.push(`/bookings/${b.id}`)}>

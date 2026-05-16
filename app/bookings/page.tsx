@@ -344,7 +344,7 @@ function BookingsContent() {
                             <th className="th">Dog-Days</th>
                             <th className="th">Rate</th>
                             <th className="th">Revenue</th>
-                            <th className="th">Received</th>
+                            <th className="th">Expected</th>
                             <th className="th">Tip</th>
                             <th className="th">Type</th>
                             <th className="th">Pay</th>

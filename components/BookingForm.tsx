@@ -303,7 +303,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
               <option>unpaid</option><option>partially paid</option><option>paid</option>
             </select>
           </div>
-          <div><label className="label">Amount Received ($)</label><input className="input text-base sm:text-sm" type="number" value={form.amount_received} onChange={set('amount_received')} /></div>
+          <div><label className="label">Expected Amount ($)</label><input className="input text-base sm:text-sm" type="number" value={form.amount_received} onChange={set('amount_received')} /></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div><label className="label">Booking Status</label>
