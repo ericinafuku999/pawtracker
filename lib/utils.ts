@@ -1,7 +1,7 @@
 export function calcDogDays(arrival: string, departure: string, numDogs: number) {
   const a = new Date(arrival + 'T00:00:00')
   const d = new Date(departure + 'T00:00:00')
-  const days = Math.max(0, Math.round((d.getTime() - a.getTime()) / 86400000))
+  const days = Math.max(1, Math.round((d.getTime() - a.getTime()) / 86400000))
   return { days, dogDays: days * numDogs }
 }
 
@@ -21,7 +21,7 @@ export function splitRevenueByMonth(
 ): MonthAllocation[] {
   const a = new Date(arrival + 'T00:00:00')
   const dep = new Date(departure + 'T00:00:00')
-  const totalDays = Math.max(0, Math.round((dep.getTime() - a.getTime()) / 86400000))
+  const totalDays = Math.max(1, Math.round((dep.getTime() - a.getTime()) / 86400000))
   const totalDD = overrideDogDays || totalDays * numDogs
   if (totalDays === 0) return []
 

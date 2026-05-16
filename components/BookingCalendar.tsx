@@ -397,7 +397,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                               </div>
                               <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
                               <div className="text-xs text-gray-400">
-                                {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.total_revenue)}
+                                {formatDate(b.arrival_date)} → {formatDate(b.departure_date)} · {formatCurrency(b.amount_received - (b.tip_amount || 0))}
                                 {b.tip_amount && b.tip_amount > 0
                                   ? <span className="text-emerald-600 font-medium"> + {formatCurrency(b.tip_amount)} tip</span>
                                   : null
