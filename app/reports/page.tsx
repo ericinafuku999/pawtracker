@@ -9,6 +9,7 @@ import AppShell from '@/components/AppShell'
 type Tab = 'rev' | 'pay' | 'exp' | 'net' | 'cust' | 'cancel'
 
 function getDepMonthKey(b: Booking) { return b.departure_date.substr(0, 7) }
+function totalAmount(b: Booking) { return b.amount_received + (b.tip_amount || 0) }
 
 export default function ReportsPage() {
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -49,15 +50,15 @@ export default function ReportsPage() {
       if (!months[mk]) months[mk] = { received: 0, expected: 0, projected: 0, rover: 0, venmo: 0, roverExpected: 0, venmoExpected: 0, bookings: 0, dogDays: 0, cancelled: 0, lostRev: 0 }
       months[mk].bookings++
       months[mk].dogDays += b.dog_days
-      months[mk].projected += b.amount_received
+      months[mk].projected += totalAmount(b)
       if (b.payment_status === 'paid') {
-        months[mk].received += b.amount_received
-        if (b.payment_type === 'Rover') months[mk].rover += b.amount_received
-        else months[mk].venmo += b.amount_received
+        months[mk].received += totalAmount(b)
+        if (b.payment_type === 'Rover') months[mk].rover += totalAmount(b)
+        else months[mk].venmo += totalAmount(b)
       } else {
-        months[mk].expected += b.amount_received
-        if (b.payment_type === 'Rover') months[mk].roverExpected += b.amount_received
-        else months[mk].venmoExpected += b.amount_received
+        months[mk].expected += totalAmount(b)
+        if (b.payment_type === 'Rover') months[mk].roverExpected += totalAmount(b)
+        else months[mk].venmoExpected += totalAmount(b)
       }
     })
 
@@ -118,9 +119,9 @@ export default function ReportsPage() {
       {tab === 'rev' && (
         <div>
           <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 text-xs text-blue-700">
-            <strong>Revenue Received</strong> = amount_received for paid bookings ·
-            <strong> Expected</strong> = amount_received for unpaid/partial ·
-            <strong> Projected</strong> = all amount_received · all filtered by departure month
+            <strong>Revenue Received</strong> = expected amount + tip for paid bookings ·
+            <strong> Expected</strong> = expected amount + tip for unpaid/partial ·
+            <strong> Projected</strong> = all bookings · all filtered by departure month
           </div>
           <div className="flex justify-end mb-3">
             <button className="btn text-xs" onClick={() => exportCSV([
@@ -160,8 +161,8 @@ export default function ReportsPage() {
       )}
 
       {tab === 'pay' && (() => {
-        const allRover = bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
-        const allVenmo = bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
+        const allRover = bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + totalAmount(b), 0)
+        const allVenmo = bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + totalAmount(b), 0)
         return <div>
           <div className="grid grid-cols-3 gap-3 mb-5">
             <div className="metric-card"><div className="text-xs text-gray-400 mb-1">All-time Rover Received</div><div className="text-xl font-semibold text-teal-600">{formatCurrency(allRover)}</div></div>
@@ -262,9 +263,9 @@ export default function ReportsPage() {
           if (!custs[k]) custs[k] = { bks: 0, dd: 0, received: 0, expected: 0, projected: 0 }
           custs[k].bks++
           custs[k].dd += b.dog_days
-          custs[k].projected += b.amount_received
-          if (b.payment_status === 'paid') custs[k].received += b.amount_received
-          else custs[k].expected += b.amount_received
+          custs[k].projected += totalAmount(b)
+          if (b.payment_status === 'paid') custs[k].received += totalAmount(b)
+          else custs[k].expected += totalAmount(b)
         })
         return <div className="card p-0 overflow-hidden"><div className="overflow-x-auto"><table className="w-full">
           <thead><tr>

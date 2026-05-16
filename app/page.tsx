@@ -16,6 +16,7 @@ function getMonthKey(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 function getDepMonthKey(b: Booking) { return b.departure_date.substr(0, 7) }
+function totalAmount(b: Booking) { return b.amount_received + (b.tip_amount || 0) }
 
 function parseLocalDate(s: string) {
   const [y, m, d] = s.split('-').map(Number)
@@ -47,11 +48,11 @@ function filterBookings(bookings: Booking[], period: Period, pickedMonth: string
 
 function getMonthRevenue(bookings: Booking[]) {
   const monthMap: Record<string, { rover: number; venmo: number }> = {}
-  bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && b.amount_received > 0).forEach(b => {
+  bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && totalAmount(b) > 0).forEach(b => {
     const mk = getDepMonthKey(b)
     if (!monthMap[mk]) monthMap[mk] = { rover: 0, venmo: 0 }
-    if (b.payment_type === 'Rover') monthMap[mk].rover += b.amount_received
-    else monthMap[mk].venmo += b.amount_received
+    if (b.payment_type === 'Rover') monthMap[mk].rover += totalAmount(b)
+    else monthMap[mk].venmo += totalAmount(b)
   })
   return monthMap
 }
@@ -110,7 +111,6 @@ export default function Dashboard() {
       return b.status === 'active' || b.payment_status !== 'paid'
     })
     if (pending.length > 0) {
-      // Only show popup once per day — resets at midnight
       const lastShown = localStorage.getItem('pending_popup_shown')
       const today = new Date()
       const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -196,7 +196,7 @@ export default function Dashboard() {
     const t = new Date(); t.setHours(0,0,0,0)
     return dep < t
   })
-  const totalOwed = persistentUnpaid.reduce((s, b) => s + b.amount_received, 0)
+  const totalOwed = persistentUnpaid.reduce((s, b) => s + totalAmount(b), 0)
 
   function getProfile(booking: Booking): DogProfile | null {
     if ((booking.customer_name || '').toLowerCase() !== 'imported' && (booking.customer_name || '').trim() !== '') {
@@ -211,7 +211,6 @@ export default function Dashboard() {
     ) || null
   }
 
-  // Compact dog card for the today widget
   function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
     const profile = getProfile(booking)
     function handleTileClick() { router.push(`/bookings/${booking.id}`) }
@@ -241,7 +240,6 @@ export default function Dashboard() {
     )
   }
 
-  // Widget card component for clean reuse
   function TodayCard({
     icon, title, color, badgeColor, count, children, emptyText, emptyColor
   }: {
@@ -258,7 +256,7 @@ export default function Dashboard() {
       <div className={`rounded-xl border p-3 ${color}`}>
         <div className="flex items-center gap-2 mb-2">
           <span className="text-base">{icon}</span>
-          <div className={`font-semibold text-xs uppercase tracking-wide`}>{title}</div>
+          <div className="font-semibold text-xs uppercase tracking-wide">{title}</div>
           <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${badgeColor}`}>{count}</span>
         </div>
         {count === 0
@@ -273,13 +271,13 @@ export default function Dashboard() {
     departingToday.length > 0 || departingTomorrow.length > 0 || currentlyHere.length > 0
 
   const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
-  const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
-  const venmo = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
+  const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + totalAmount(b), 0)
+  const venmo = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Venmo').reduce((s, b) => s + totalAmount(b), 0)
   const totalReceived = rover + venmo
-  const expectedRover = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Rover').reduce((s, b) => s + b.amount_received, 0)
-  const expectedVenmo = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Venmo').reduce((s, b) => s + b.amount_received, 0)
+  const expectedRover = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Rover').reduce((s, b) => s + totalAmount(b), 0)
+  const expectedVenmo = bks.filter(b => (b.payment_status === 'unpaid' || b.payment_status === 'partially paid') && b.payment_type === 'Venmo').reduce((s, b) => s + totalAmount(b), 0)
   const expectedRevenue = expectedRover + expectedVenmo
-  const projectedTotal = bks.reduce((s, b) => s + b.amount_received, 0)
+  const projectedTotal = bks.reduce((s, b) => s + totalAmount(b), 0)
   const cancelled = bookings.filter(b => b.status === 'cancelled')
   const lostRev = cancelled.reduce((s, b) => s + b.total_revenue, 0)
   const dogDays = bks.reduce((s, b) => s + b.dog_days, 0)
@@ -300,7 +298,7 @@ export default function Dashboard() {
   const metrics = [
     { label: 'Revenue Received', value: formatCurrency(totalReceived), sub: `Rover ${formatCurrency(rover)} · Venmo ${formatCurrency(venmo)}` },
     { label: 'Expected Revenue', value: formatCurrency(expectedRevenue), sub: `Rover ${formatCurrency(expectedRover)} · Venmo ${formatCurrency(expectedVenmo)}` },
-    { label: 'Projected Total', value: formatCurrency(projectedTotal), sub: `paid + unpaid received` },
+    { label: 'Projected Total', value: formatCurrency(projectedTotal), sub: `paid + unpaid` },
     { label: 'Net Profit', value: formatCurrency(net), color: net >= 0 ? 'text-emerald-600' : 'text-red-500', sub: `after $${totalExp.toFixed(0)} expenses` },
     { label: 'Dog-Days', value: dogDays.toString(), sub: dogDays ? `${formatCurrency(projectedTotal / dogDays)}/day` : '' },
     { label: 'Total Expenses', value: formatCurrency(totalExp) },
@@ -382,7 +380,7 @@ export default function Dashboard() {
                             </select>
                           </div>
                           <div>
-                            <label className="label">Amount Received</label>
+                            <label className="label">Expected Amount</label>
                             <input className="input text-xs" type="number" value={item.amountReceived} onChange={e => updateItem(item.booking.id, 'amountReceived', e.target.value)} />
                           </div>
                         </>
@@ -454,7 +452,7 @@ export default function Dashboard() {
               <span>⚠️</span>
               <div>
                 <div className="font-semibold text-sm text-amber-800">{persistentUnpaid.length} Unpaid Booking{persistentUnpaid.length !== 1 ? 's' : ''}</div>
-                <div className="text-xs text-amber-600">{formatCurrency(totalOwed)} outstanding</div>
+                <div className="text-xs text-amber-600">{formatCurrency(totalOwed)} expected</div>
               </div>
             </div>
             <button onClick={() => setShowPending(true)} className="btn text-xs bg-amber-100 border-amber-300 text-amber-800 hover:bg-amber-200">
@@ -469,7 +467,7 @@ export default function Dashboard() {
                   <span className="text-xs text-gray-400 ml-2 hidden sm:inline">· {b.customer_name} · {formatDate(b.departure_date)}</span>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-xs text-amber-700 font-medium">{formatCurrency(b.amount_received)} expected</span>
+                  <span className="text-xs text-amber-700 font-medium">{formatCurrency(totalAmount(b))} expected</span>
                   <button onClick={() => markOnePaid(b.id)} className="btn text-xs py-1 px-2 bg-emerald-50 text-emerald-700 border-emerald-200">✓ Paid</button>
                 </div>
               </div>
@@ -483,7 +481,7 @@ export default function Dashboard() {
         </div>
       )}
 
-     {/* TODAY WIDGET */}
+      {/* TODAY WIDGET */}
       {showTodayWidget && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
           <div className="card border-emerald-200 bg-emerald-50">
@@ -640,7 +638,7 @@ export default function Dashboard() {
                   <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
                     <td className="td font-medium">{b.customer_name}</td>
                     <td className="td text-gray-500">{b.dog_names}</td>
-                    <td className="td">{formatCurrency(b.amount_received)}</td>
+                    <td className="td">{formatCurrency(totalAmount(b))}</td>
                     <td className="td">
                       <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
                     </td>

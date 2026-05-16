@@ -12,6 +12,7 @@ function fmtCurrency(n: number) {
 }
 
 function getMonthKey(s: string) { return s.substr(0, 7) }
+function totalAmount(b: Booking) { return b.amount_received + (b.tip_amount || 0) }
 
 export function exportToExcel(bookings: Booking[], expenses: Expense[], filename = 'PawTracker') {
   const wb = XLSX.utils.book_new()
@@ -27,9 +28,9 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
     if (!monthMap[mk]) monthMap[mk] = { bookings: 0, dogDays: 0, received: 0, expected: 0, projected: 0, expenses: 0 }
     monthMap[mk].bookings++
     monthMap[mk].dogDays += b.dog_days
-    monthMap[mk].projected += b.amount_received
-    if (b.payment_status === 'paid') monthMap[mk].received += b.amount_received
-    else monthMap[mk].expected += b.amount_received
+    monthMap[mk].projected += totalAmount(b)
+    if (b.payment_status === 'paid') monthMap[mk].received += totalAmount(b)
+    else monthMap[mk].expected += totalAmount(b)
   })
 
   expenses.forEach(e => {
@@ -49,28 +50,25 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
       'Bookings': d.bookings,
       'Dog-Days': d.dogDays,
       'Revenue Received': d.received,
-      'Expected (Unpaid)': d.expected,
+      'Expected Revenue': d.expected,
       'Projected Total': d.projected,
       'Expenses': d.expenses,
       'Net Profit': d.received - d.expenses,
     }
   })
 
-  // Totals row
   const totals = {
     'Month': 'TOTAL',
     'Bookings': monthRows.reduce((s, r) => s + r['Bookings'], 0),
     'Dog-Days': monthRows.reduce((s, r) => s + r['Dog-Days'], 0),
     'Revenue Received': monthRows.reduce((s, r) => s + r['Revenue Received'], 0),
-    'Expected (Unpaid)': monthRows.reduce((s, r) => s + r['Expected (Unpaid)'], 0),
+    'Expected Revenue': monthRows.reduce((s, r) => s + r['Expected Revenue'], 0),
     'Projected Total': monthRows.reduce((s, r) => s + r['Projected Total'], 0),
     'Expenses': monthRows.reduce((s, r) => s + r['Expenses'], 0),
     'Net Profit': monthRows.reduce((s, r) => s + r['Net Profit'], 0),
   }
 
   const ws1 = XLSX.utils.json_to_sheet([...monthRows, totals])
-
-  // Column widths
   ws1['!cols'] = [
     { wch: 18 }, { wch: 10 }, { wch: 10 },
     { wch: 18 }, { wch: 18 }, { wch: 16 },
@@ -89,15 +87,19 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
       'Owner': b.customer_name,
       'Days': b.number_of_days,
       'Dog-Days': b.dog_days,
-      'Amount Received': b.amount_received,
+      'Expected Amount': b.amount_received,
+      'Tip': b.tip_amount || 0,
+      'Total': totalAmount(b),
       'Payment Type': b.payment_type,
+      'Payment Status': b.payment_status,
     }))
 
   const ws2 = XLSX.utils.json_to_sheet(bookingRows)
   ws2['!cols'] = [
     { wch: 14 }, { wch: 14 }, { wch: 16 },
     { wch: 16 }, { wch: 8 }, { wch: 10 },
-    { wch: 16 }, { wch: 14 },
+    { wch: 16 }, { wch: 10 }, { wch: 12 },
+    { wch: 14 }, { wch: 16 },
   ]
   XLSX.utils.book_append_sheet(wb, ws2, 'Bookings')
 
@@ -116,7 +118,6 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
       'Notes': e.notes || '',
     }))
 
-  // Expense totals
   const expTotals = {
     'Date': 'TOTAL',
     'Vendor': '',
@@ -145,19 +146,18 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
   )
   const ytdExpenses = expenses.filter(e => e.expense_date.startsWith(String(currentYear)))
 
-  const ytdReceived = ytdBookings.filter(b => b.payment_status === 'paid').reduce((s, b) => s + b.amount_received, 0)
-  const ytdExpected = ytdBookings.filter(b => b.payment_status !== 'paid').reduce((s, b) => s + b.amount_received, 0)
-  const ytdProjected = ytdBookings.reduce((s, b) => s + b.amount_received, 0)
+  const ytdReceived = ytdBookings.filter(b => b.payment_status === 'paid').reduce((s, b) => s + totalAmount(b), 0)
+  const ytdExpected = ytdBookings.filter(b => b.payment_status !== 'paid').reduce((s, b) => s + totalAmount(b), 0)
+  const ytdProjected = ytdBookings.reduce((s, b) => s + totalAmount(b), 0)
   const ytdTotalExp = ytdExpenses.reduce((s, e) => s + e.amount, 0)
   const ytdDeductible = ytdExpenses.filter(e => e.tax_deductible).reduce((s, e) => s + e.deductible_amount, 0)
   const ytdProfit = ytdReceived - ytdTotalExp
 
-  // Quarterly breakdown
   const quarters = [1, 2, 3, 4].map(q => {
     const qMonths = [0, 1, 2].map(i => String((q - 1) * 3 + i + 1).padStart(2, '0'))
     const qBks = ytdBookings.filter(b => qMonths.includes(b.departure_date.substr(5, 2)))
     const qExps = ytdExpenses.filter(e => qMonths.includes(e.expense_date.substr(5, 2)))
-    const qReceived = qBks.filter(b => b.payment_status === 'paid').reduce((s, b) => s + b.amount_received, 0)
+    const qReceived = qBks.filter(b => b.payment_status === 'paid').reduce((s, b) => s + totalAmount(b), 0)
     const qExpTotal = qExps.reduce((s, e) => s + e.amount, 0)
     return {
       'Period': `Q${q} ${currentYear}`,
@@ -194,7 +194,6 @@ export function exportToExcel(bookings: Booking[], expenses: Expense[], filename
   ]
   XLSX.utils.book_append_sheet(wb, ws4, 'Tax Summary')
 
-  // ── Download ──────────────────────────────────────────────────
   const year = new Date().getFullYear()
   XLSX.writeFile(wb, `${filename}-${year}.xlsx`)
 }
