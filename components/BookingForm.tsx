@@ -127,8 +127,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
     setForm(f => ({ ...f, [k]: e.target.value }))
 
   function goBack() {
-    localStorage.setItem('bookings_view', 'list')
-    router.push('/bookings')
+    router.back()
   }
 
   async function save(addAnother = false) {
