@@ -110,15 +110,21 @@ export default function Dashboard() {
       return b.status === 'active' || b.payment_status !== 'paid'
     })
     if (pending.length > 0) {
-      setPendingItems(pending.map(b => ({
-        booking: b,
-        payStatus: b.payment_status,
-        bookingStatus: b.status === 'active' ? 'completed' : b.status,
-        amountReceived: String(b.amount_received),
-        extended: false,
-        newDepartureDate: b.departure_date,
-      })))
-      setShowPending(true)
+      // Only show popup once per day — resets at midnight
+      const lastShown = localStorage.getItem('pending_popup_shown')
+      const today = new Date()
+      const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      if (lastShown !== todayKey) {
+        setPendingItems(pending.map(b => ({
+          booking: b,
+          payStatus: b.payment_status,
+          bookingStatus: b.status === 'active' ? 'completed' : b.status,
+          amountReceived: String(b.amount_received),
+          extended: false,
+          newDepartureDate: b.departure_date,
+        })))
+        setShowPending(true)
+      }
     }
   }, [])
 
@@ -141,6 +147,9 @@ export default function Dashboard() {
     }
     setSavingPending(false)
     setShowPending(false)
+    const today = new Date()
+    const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    localStorage.setItem('pending_popup_shown', todayKey)
     load()
   }
 
@@ -412,7 +421,12 @@ export default function Dashboard() {
               <button className="btn btn-primary flex-1 justify-center py-2.5" onClick={savePending} disabled={savingPending}>
                 {savingPending ? 'Saving…' : `Save All Updates`}
               </button>
-              <button className="btn flex-1 justify-center py-2.5" onClick={() => setShowPending(false)}>
+              <button className="btn flex-1 justify-center py-2.5" onClick={() => {
+                const today = new Date()
+                const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+                localStorage.setItem('pending_popup_shown', todayKey)
+                setShowPending(false)
+              }}>
                 Remind Me Later
               </button>
             </div>
