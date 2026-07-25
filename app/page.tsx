@@ -105,6 +105,8 @@ export default function Dashboard() {
   const [savingPending, setSavingPending] = useState(false)
   const [editingTime, setEditingTime] = useState<{ id: string; field: 'arrival_time' | 'departure_time' } | null>(null)
   const [timeValue, setTimeValue] = useState('')
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
+  const [amountValue, setAmountValue] = useState('')
   const supabase = createClient()
   const router = useRouter()
 
@@ -234,6 +236,29 @@ export default function Dashboard() {
     setTimeValue('')
   }
 
+  function openAmountEdit(e: React.MouseEvent, booking: Booking) {
+    e.stopPropagation()
+    setEditingAmountId(booking.id)
+    setAmountValue(String(booking.amount_received))
+  }
+
+  async function saveAmount(booking: Booking) {
+    const value = parseFloat(amountValue) || 0
+    const { error } = await supabase.from('bookings').update({
+      amount_received: value,
+      updated_at: new Date().toISOString(),
+    }).eq('id', booking.id)
+    if (error) {
+      alert(`Couldn't save expected amount: ${error.message}`)
+      return
+    }
+    // Updating the same amount_received field the rest of the app reads from, so
+    // Expected Revenue, Projected Total, and the calendar all reflect this immediately.
+    setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, amount_received: value } : b))
+    setEditingAmountId(null)
+    setAmountValue('')
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -319,6 +344,26 @@ export default function Dashboard() {
             <div className="text-xs text-gray-300">
               → {formatDate(booking.departure_date)}{booking.departure_time ? ` @ ${formatTime(booking.departure_time)}` : ''}
             </div>
+          )}
+          {editingAmountId === booking.id ? (
+            <div className="flex items-center gap-1 mt-0.5" onClick={e => e.stopPropagation()}>
+              <span className="text-xs text-gray-400">$</span>
+              <input
+                type="number"
+                autoFocus
+                className="input text-xs py-0.5 px-1 w-16"
+                value={amountValue}
+                onChange={e => setAmountValue(e.target.value)}
+              />
+              <button onClick={() => saveAmount(booking)} className="text-emerald-600 text-xs font-bold px-0.5">✓</button>
+              <button onClick={() => { setEditingAmountId(null); setAmountValue('') }} className="text-gray-400 text-xs px-0.5">✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={e => openAmountEdit(e, booking)}
+              className="text-xs text-gray-400 hover:text-emerald-600 hover:underline">
+              {formatCurrency(booking.amount_received)} expected
+            </button>
           )}
         </div>
         {timeField && (
