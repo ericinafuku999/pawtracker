@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 import { Booking } from '@/lib/types'
-import { toDateTime, formatTime } from '@/lib/utils'
+import { toDateTimeInZone, formatTime } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
+// Vercel functions run in UTC regardless of where the business actually is, so
+// booking times ("7:07 PM") must be explicitly interpreted in the business's
+// real timezone rather than the server's — otherwise every time is off by
+// several hours. Update this if PawTracker is ever used outside Eastern time.
+const BUSINESS_TIMEZONE = 'America/New_York'
+
 const REMINDER_MINUTES_BEFORE = 15
-// Grace window so a booking is never missed even if a run is late or skipped,
-// but also never fires too long after the ideal moment. Widened to tolerate
-// scheduler jitter/delays from free-tier cron triggers (e.g. GitHub Actions
-// "best effort" schedules, which can be delayed well beyond 5 minutes).
-const EARLY_WINDOW_MIN = 25 // fire any time from 25 min before...
-const LATE_WINDOW_MIN = -15 // ...up to 15 min after, in case a cron run was delayed
+// Small grace window so a booking is never missed even if a cron run lands a
+// few minutes off, without firing so early/late that it stops feeling like a
+// "15 minutes before" reminder. cron-job.org runs reliably every 5 minutes.
+const EARLY_WINDOW_MIN = 18 // fire any time from 18 min before...
+const LATE_WINDOW_MIN = -5 // ...up to 5 min after, in case a cron run was delayed
 
 function minutesUntil(target: Date, now: Date) {
   return (target.getTime() - now.getTime()) / 60000
@@ -40,7 +45,13 @@ export async function GET(req: NextRequest) {
   const supabase = createClient(supabaseUrl, serviceKey)
 
   const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  // Compute "today" in the business's timezone, not the server's (UTC) — otherwise
+  // this silently rolls over to tomorrow's date every evening around 8pm Eastern.
+  const todayParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: BUSINESS_TIMEZONE,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now) // en-CA gives YYYY-MM-DD directly
+  const todayStr = todayParts
 
   // Only bother looking at bookings touching today — reminders are same-day only.
   const { data: bookings, error } = await supabase
@@ -89,7 +100,7 @@ export async function GET(req: NextRequest) {
   for (const booking of (bookings || []) as Booking[]) {
     // Arrival reminder
     if (booking.arrival_time && !booking.arrival_reminder_sent && booking.arrival_date === todayStr) {
-      const target = toDateTime(booking.arrival_date, booking.arrival_time, 0, 0)
+      const target = toDateTimeInZone(booking.arrival_date, booking.arrival_time, BUSINESS_TIMEZONE, 0, 0)
       const mins = minutesUntil(target, now)
       if (mins <= EARLY_WINDOW_MIN && mins > LATE_WINDOW_MIN) {
         const label = booking.dog_names || booking.customer_name || 'A dog'
@@ -106,7 +117,7 @@ export async function GET(req: NextRequest) {
 
     // Departure reminder
     if (booking.departure_time && !booking.departure_reminder_sent && booking.departure_date === todayStr) {
-      const target = toDateTime(booking.departure_date, booking.departure_time, 23, 59)
+      const target = toDateTimeInZone(booking.departure_date, booking.departure_time, BUSINESS_TIMEZONE, 23, 59)
       const mins = minutesUntil(target, now)
       if (mins <= EARLY_WINDOW_MIN && mins > LATE_WINDOW_MIN) {
         const label = booking.dog_names || booking.customer_name || 'A dog'

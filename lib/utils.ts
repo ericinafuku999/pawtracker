@@ -65,6 +65,45 @@ export function toDateTime(dateStr: string, timeStr: string | null | undefined, 
   return new Date(y, m - 1, d, fallbackHour, fallbackMinute)
 }
 
+// Same idea as toDateTime, but interprets the date/time as wall-clock time in a
+// specific IANA timezone (e.g. 'America/New_York') rather than whatever timezone
+// the JS runtime happens to be running in. This matters on servers (Vercel
+// functions run in UTC) so a booking time like "7:07 PM" entered by someone in
+// Eastern time isn't misread as "7:07 PM UTC" (a 4-5 hour error).
+function getTimeZoneOffsetMs(timeZone: string, date: Date) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  })
+  const parts = dtf.formatToParts(date).reduce((acc: Record<string, string>, p) => {
+    if (p.type !== 'literal') acc[p.type] = p.value
+    return acc
+  }, {})
+  const asUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    Number(parts.hour), Number(parts.minute), Number(parts.second)
+  )
+  return asUtc - date.getTime()
+}
+
+export function toDateTimeInZone(
+  dateStr: string,
+  timeStr: string | null | undefined,
+  timeZone: string,
+  fallbackHour: number,
+  fallbackMinute: number
+) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [hh, mm] = timeStr ? timeStr.split(':').map(Number) : [fallbackHour, fallbackMinute]
+  // Guess: treat the wall-clock numbers as if they were UTC.
+  const guessUtc = new Date(Date.UTC(y, m - 1, d, hh, mm))
+  // See how that guess actually reads inside the target timezone, and correct for the gap.
+  const offsetMs = getTimeZoneOffsetMs(timeZone, guessUtc)
+  return new Date(guessUtc.getTime() - offsetMs)
+}
+
 // Formats 'HH:MM' (24hr) into e.g. '2:00 PM'
 export function formatTime(t: string | null | undefined) {
   if (!t) return ''
