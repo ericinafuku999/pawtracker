@@ -245,15 +245,19 @@ export default function Dashboard() {
 
   async function saveTime(booking: Booking, field: 'arrival_time' | 'departure_time') {
     const value = timeValue || null
+    // Reset the reminder flag so a changed time gets a fresh 15-min-before text
+    // instead of staying silenced because the old time already fired one.
+    const reminderField = field === 'arrival_time' ? 'arrival_reminder_sent' : 'departure_reminder_sent'
     const { error } = await supabase.from('bookings').update({
       [field]: value,
+      [reminderField]: false,
       updated_at: new Date().toISOString(),
     }).eq('id', booking.id)
     if (error) {
       alert(`Couldn't save time: ${error.message}\n\nIf this mentions "arrival_time" or "departure_time" not existing, the database migration for those columns hasn't been run yet in Supabase.`)
       return
     }
-    setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, [field]: value } : b))
+    setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, [field]: value, [reminderField]: false } : b))
     setEditingTime(null)
     setTimeValue('')
   }

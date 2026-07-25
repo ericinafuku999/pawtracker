@@ -17,8 +17,10 @@ export interface Booking {
   number_of_dogs: number
   arrival_date: string
   arrival_time: string | null
+  arrival_reminder_sent: boolean
   departure_date: string
   departure_time: string | null
+  departure_reminder_sent: boolean
   number_of_days: number
   dog_days: number
   dog_days_override: number | null

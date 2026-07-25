@@ -1,0 +1,16 @@
+name: Booking reminders
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub Actions cron can drift a few minutes under load,
+    # which is fine since the API route itself accepts a grace window.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminders endpoint
+        run: |
+          curl -fsS "${{ secrets.PAWTRACKER_APP_URL }}/api/reminders?secret=${{ secrets.PAWTRACKER_CRON_SECRET }}"

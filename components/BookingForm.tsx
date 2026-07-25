@@ -33,6 +33,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedDog, setSelectedDog] = useState<DogProfile | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
+  const originalTimes = useRef<{ arrival_time: string | null; departure_time: string | null }>({ arrival_time: null, departure_time: null })
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -98,6 +99,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       supabase.from('bookings').select('*').eq('id', bookingId).single().then(({ data }) => {
         if (data) {
           const b = data as Booking
+          originalTimes.current = { arrival_time: b.arrival_time, departure_time: b.departure_time }
           setForm({
             customer_name: b.customer_name, dog_names: b.dog_names,
             number_of_dogs: String(b.number_of_dogs), rate_per_dog_day: String(b.rate_per_dog_day),
@@ -143,15 +145,23 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
     const { days, dogDays } = calcDogDays(form.arrival_date, form.departure_date, n)
     const dd = ov || dogDays
     const ma = splitRevenueByMonth(form.arrival_date, form.departure_date, n, rate, ov || undefined)
+    const newArrivalTime = form.arrival_time || null
+    const newDepartureTime = form.departure_time || null
+    // If a time actually changed, clear its "reminder sent" flag so the new
+    // time gets its own 15-min-before text instead of staying silenced.
+    const arrivalTimeChanged = isEdit && newArrivalTime !== originalTimes.current.arrival_time
+    const departureTimeChanged = isEdit && newDepartureTime !== originalTimes.current.departure_time
     const payload = {
       user_id: user.id,
       customer_name: form.customer_name,
       dog_names: form.dog_names,
       number_of_dogs: n,
       arrival_date: form.arrival_date,
-      arrival_time: form.arrival_time || null,
+      arrival_time: newArrivalTime,
+      ...(arrivalTimeChanged ? { arrival_reminder_sent: false } : {}),
       departure_date: form.departure_date,
-      departure_time: form.departure_time || null,
+      departure_time: newDepartureTime,
+      ...(departureTimeChanged ? { departure_reminder_sent: false } : {}),
       number_of_days: days,
       dog_days: dd,
       dog_days_override: ov,
