@@ -73,6 +73,23 @@ interface PendingItem {
   newDepartureDate: string
 }
 
+function LiveClock() {
+  const [now, setNow] = useState<Date | null>(null)
+  useEffect(() => {
+    setNow(new Date())
+    const t = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  if (!now) return null
+  const dateStr = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  const timeStr = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  return (
+    <span className="text-xs md:text-sm text-gray-400 font-mono tabular-nums">
+      {dateStr} · {timeStr}
+    </span>
+  )
+}
+
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
@@ -131,6 +148,21 @@ export default function Dashboard() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  // Home-screen "app" icons on iOS often get suspended in the background instead of
+  // fully closed, so reopening them can just resume old in-memory data instead of
+  // fetching fresh data. Explicitly refetch whenever the app/tab becomes visible again.
+  useEffect(() => {
+    function handleVisible() {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', handleVisible)
+    window.addEventListener('focus', handleVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible)
+      window.removeEventListener('focus', handleVisible)
+    }
+  }, [load])
 
   async function savePending() {
     setSavingPending(true)
@@ -485,7 +517,10 @@ export default function Dashboard() {
 
       <div className="flex items-start justify-between mb-4">
         <div>
-          <h1 className="text-xl font-semibold">Dashboard</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl font-semibold">Dashboard</h1>
+            <LiveClock />
+          </div>
           <p className="text-sm text-gray-500">Cash flow and performance overview</p>
         </div>
         <button
