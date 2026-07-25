@@ -58,12 +58,17 @@ export default function PushSetup() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setWorking(false); return }
       const json = sub.toJSON() as any
-      await supabase.from('push_subscriptions').upsert({
+      const { error } = await supabase.from('push_subscriptions').upsert({
         user_id: user.id,
         endpoint: sub.endpoint,
         p256dh: json.keys.p256dh,
         auth: json.keys.auth,
       }, { onConflict: 'endpoint' })
+      if (error) {
+        alert(`Couldn't save this device's subscription: ${error.message}\n\nIf this mentions "push_subscriptions" not existing, that database migration hasn't been run yet in Supabase.`)
+        setWorking(false)
+        return
+      }
       setState('on')
     } catch (e) {
       console.error(e)
