@@ -86,6 +86,8 @@ export default function Dashboard() {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([])
   const [showPending, setShowPending] = useState(false)
   const [savingPending, setSavingPending] = useState(false)
+  const [editingTime, setEditingTime] = useState<{ id: string; field: 'arrival_time' | 'departure_time' } | null>(null)
+  const [timeValue, setTimeValue] = useState('')
   const supabase = createClient()
   const router = useRouter()
 
@@ -171,6 +173,23 @@ export default function Dashboard() {
     ))
   }
 
+  function openTimeEdit(e: React.MouseEvent, booking: Booking, field: 'arrival_time' | 'departure_time') {
+    e.stopPropagation()
+    setEditingTime({ id: booking.id, field })
+    setTimeValue(booking[field] || '')
+  }
+
+  async function saveTime(booking: Booking, field: 'arrival_time' | 'departure_time') {
+    const value = timeValue || null
+    await supabase.from('bookings').update({
+      [field]: value,
+      updated_at: new Date().toISOString(),
+    }).eq('id', booking.id)
+    setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, [field]: value } : b))
+    setEditingTime(null)
+    setTimeValue('')
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -216,7 +235,7 @@ export default function Dashboard() {
     ) || null
   }
 
-  function DogCard({ booking, showDates = false, time }: { booking: Booking; showDates?: boolean; time?: string }) {
+  function DogCard({ booking, showDates = false, timeField }: { booking: Booking; showDates?: boolean; timeField?: 'arrival_time' | 'departure_time' }) {
     const profile = getProfile(booking)
     function handleTileClick() { router.push(`/bookings/${booking.id}`) }
     function handlePhotoClick(e: React.MouseEvent) {
@@ -224,6 +243,8 @@ export default function Dashboard() {
       if (profile) router.push(`/dogs/${profile.id}`)
       else router.push(`/dogs/new?dogName=${encodeURIComponent(booking.dog_names)}&customerName=${encodeURIComponent(booking.customer_name)}&numDogs=${booking.number_of_dogs}&rate=${booking.rate_per_dog_day}`)
     }
+    const isEditingTime = !!timeField && editingTime?.id === booking.id && editingTime.field === timeField
+    const currentTimeVal = timeField ? booking[timeField] : null
     return (
       <div onClick={handleTileClick} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-sm transition-all cursor-pointer group">
         <div onClick={handlePhotoClick} className="w-9 h-9 rounded-lg overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
@@ -244,7 +265,27 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        {time && <span className="text-xs text-gray-400 flex-shrink-0">{time}</span>}
+        {timeField && (
+          isEditingTime ? (
+            <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+              <input
+                type="time"
+                autoFocus
+                className="input text-xs py-1 px-1 w-[5.5rem]"
+                value={timeValue}
+                onChange={e => setTimeValue(e.target.value)}
+              />
+              <button onClick={() => saveTime(booking, timeField)} className="text-emerald-600 text-xs font-bold px-0.5">✓</button>
+              <button onClick={() => { setEditingTime(null); setTimeValue('') }} className="text-gray-400 text-xs px-0.5">✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={e => openTimeEdit(e, booking, timeField)}
+              className="text-xs text-gray-400 flex-shrink-0 hover:text-emerald-600 hover:underline whitespace-nowrap">
+              {currentTimeVal ? formatTime(currentTimeVal) : '+ time'}
+            </button>
+          )
+        )}
         <span className={`badge text-xs flex-shrink-0 ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
     )
@@ -502,7 +543,7 @@ export default function Dashboard() {
             </div>
             {arrivingToday.length === 0
               ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
-              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.arrival_time)} />)}</div>
+              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" />)}</div>
             }
           </div>
           <div className="card border-teal-200 bg-teal-50">
@@ -513,7 +554,7 @@ export default function Dashboard() {
             </div>
             {arrivingTomorrow.length === 0
               ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.arrival_time)} />)}</div>
+              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" />)}</div>
             }
           </div>
           <div className="card border-red-200 bg-red-50">
@@ -524,7 +565,7 @@ export default function Dashboard() {
             </div>
             {departingToday.length === 0
               ? <div className="text-xs text-red-500 text-center py-2">None today</div>
-              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.departure_time)} />)}</div>
+              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" />)}</div>
             }
           </div>
           <div className="card border-orange-200 bg-orange-50">
@@ -535,7 +576,7 @@ export default function Dashboard() {
             </div>
             {departingTomorrow.length === 0
               ? <div className="text-xs text-orange-400 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.departure_time)} />)}</div>
+              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" />)}</div>
             }
           </div>
           <div className="card border-blue-200 bg-blue-50 md:col-span-2">
