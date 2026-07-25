@@ -1,8 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Booking } from '@/lib/types'
 import { useRouter } from 'next/navigation'
-import { formatDate, formatCurrency, formatTime } from '@/lib/utils'
+import { formatDate, formatCurrency, formatTime, toDateTime } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
 
 const COLORS = [
@@ -75,6 +75,14 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   if (JSON.stringify(bookings.map(b => b.id)) !== JSON.stringify(localBookings.map(b => b.id))) {
     setLocalBookings(bookings)
   }
+
+  // Keep "has departed" accurate against the real clock without requiring a page reload.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+  const now = new Date()
 
   const activeBookings = localBookings.filter(b => b.status !== 'cancelled')
   const hasSearch = searchQuery.trim().length > 0
@@ -361,11 +369,13 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                     const isMatch = hasSearch && matchedIds.has(b.id)
                     const profile = getDogProfile(b)
                     const isDeparting = sameDay(parseD(b.departure_date), selectedDay!)
+                    const isArriving = sameDay(parseD(b.arrival_date), selectedDay!)
+                    const hasDeparted = toDateTime(b.departure_date, b.departure_time, 23, 59) <= now
                     const isTipping = tipBookingId === b.id
                     return (
                       <div key={b.id}
                         className={`px-3 md:px-4 py-3 border-b border-gray-50 last:border-0
-                          ${isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
+                          ${hasDeparted ? 'bg-gray-50 opacity-60 grayscale' : isMatch ? 'bg-emerald-50' : 'hover:bg-gray-50'}`}>
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3 flex-1 min-w-0">
                             <div
@@ -381,10 +391,12 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-semibold text-sm truncate">
+                                <span className={`font-semibold text-sm truncate ${hasDeparted ? 'line-through decoration-gray-300' : ''}`}>
                                   {isMatch && '★ '}{b.dog_names || b.customer_name || 'Unnamed'}
                                 </span>
+                                {isArriving && <span className="badge bg-emerald-100 text-emerald-700 text-xs flex-shrink-0">Arriving</span>}
                                 {isDeparting && <span className="badge bg-red-100 text-red-600 text-xs flex-shrink-0">Departing</span>}
+                                {hasDeparted && <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">✓ Departed</span>}
                                 {!profile && <span className="text-xs text-gray-400 font-normal flex-shrink-0">(no profile)</span>}
                               </div>
                               <div className="text-xs text-gray-500">👤 {b.customer_name}</div>
