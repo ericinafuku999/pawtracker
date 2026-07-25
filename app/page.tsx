@@ -149,6 +149,14 @@ export default function Dashboard() {
 
   useEffect(() => { load() }, [load])
 
+  // Periodically re-render so "arrived"/"departed" and Currently Here stay accurate
+  // against the actual clock without requiring a manual page reload.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick(x => x + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+
   // Home-screen "app" icons on iOS often get suspended in the background instead of
   // fully closed, so reopening them can just resume old in-memory data instead of
   // fetching fresh data. Explicitly refetch whenever the app/tab becomes visible again.
@@ -213,10 +221,14 @@ export default function Dashboard() {
 
   async function saveTime(booking: Booking, field: 'arrival_time' | 'departure_time') {
     const value = timeValue || null
-    await supabase.from('bookings').update({
+    const { error } = await supabase.from('bookings').update({
       [field]: value,
       updated_at: new Date().toISOString(),
     }).eq('id', booking.id)
+    if (error) {
+      alert(`Couldn't save time: ${error.message}\n\nIf this mentions "arrival_time" or "departure_time" not existing, the database migration for those columns hasn't been run yet in Supabase.`)
+      return
+    }
     setBookings(prev => prev.map(b => b.id === booking.id ? { ...b, [field]: value } : b))
     setEditingTime(null)
     setTimeValue('')
@@ -243,6 +255,9 @@ export default function Dashboard() {
     return arrivalDT <= now && departureDT >= now
   })
 
+  function hasArrived(b: Booking) { return toDateTime(b.arrival_date, b.arrival_time, 0, 0) <= now }
+  function hasDeparted(b: Booking) { return toDateTime(b.departure_date, b.departure_time, 23, 59) <= now }
+
   function dogCount(bs: Booking[]) { return bs.reduce((s, b) => s + b.number_of_dogs, 0) }
 
   const persistentUnpaid = bookings.filter(b => {
@@ -267,7 +282,9 @@ export default function Dashboard() {
     ) || null
   }
 
-  function DogCard({ booking, showDates = false, timeField }: { booking: Booking; showDates?: boolean; timeField?: 'arrival_time' | 'departure_time' }) {
+  function DogCard({ booking, showDates = false, timeField, happened = false, happenedLabel }: {
+    booking: Booking; showDates?: boolean; timeField?: 'arrival_time' | 'departure_time'; happened?: boolean; happenedLabel?: string
+  }) {
     const profile = getProfile(booking)
     function handleTileClick() { router.push(`/bookings/${booking.id}`) }
     function handlePhotoClick(e: React.MouseEvent) {
@@ -278,7 +295,9 @@ export default function Dashboard() {
     const isEditingTime = !!timeField && editingTime?.id === booking.id && editingTime.field === timeField
     const currentTimeVal = timeField ? booking[timeField] : null
     return (
-      <div onClick={handleTileClick} className="flex items-center gap-2 p-2 bg-white rounded-xl border border-gray-100 hover:border-emerald-200 hover:shadow-sm transition-all cursor-pointer group">
+      <div onClick={handleTileClick} className={`flex items-center gap-2 p-2 rounded-xl border transition-all cursor-pointer group ${
+        happened ? 'bg-gray-50 border-gray-100 opacity-60 grayscale hover:opacity-80' : 'bg-white border-gray-100 hover:border-emerald-200 hover:shadow-sm'
+      }`}>
         <div onClick={handlePhotoClick} className="w-9 h-9 rounded-lg overflow-hidden bg-emerald-50 flex-shrink-0 flex items-center justify-center border border-emerald-100 relative group/photo">
           {profile?.photo_url
             ? <img src={profile.photo_url} alt={booking.dog_names} className="w-full h-full object-cover" />
@@ -289,7 +308,12 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-xs truncate">{booking.dog_names}</div>
+          <div className="flex items-center gap-1.5">
+            <div className={`font-semibold text-xs truncate ${happened ? 'line-through decoration-gray-300' : ''}`}>{booking.dog_names}</div>
+            {happened && happenedLabel && (
+              <span className="text-xs text-gray-400 flex-shrink-0 whitespace-nowrap">✓ {happenedLabel}</span>
+            )}
+          </div>
           <div className="text-xs text-gray-400 truncate">{booking.customer_name}</div>
           {showDates && (
             <div className="text-xs text-gray-300">
@@ -578,7 +602,7 @@ export default function Dashboard() {
             </div>
             {arrivingToday.length === 0
               ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
-              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" />)}</div>
+              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" happened={hasArrived(b)} happenedLabel="Arrived" />)}</div>
             }
           </div>
           <div className="card border-teal-200 bg-teal-50">
@@ -589,7 +613,7 @@ export default function Dashboard() {
             </div>
             {arrivingTomorrow.length === 0
               ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" />)}</div>
+              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="arrival_time" happened={hasArrived(b)} happenedLabel="Arrived" />)}</div>
             }
           </div>
           <div className="card border-red-200 bg-red-50">
@@ -600,7 +624,7 @@ export default function Dashboard() {
             </div>
             {departingToday.length === 0
               ? <div className="text-xs text-red-500 text-center py-2">None today</div>
-              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" />)}</div>
+              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" happened={hasDeparted(b)} happenedLabel="Departed" />)}</div>
             }
           </div>
           <div className="card border-orange-200 bg-orange-50">
@@ -611,7 +635,7 @@ export default function Dashboard() {
             </div>
             {departingTomorrow.length === 0
               ? <div className="text-xs text-orange-400 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" />)}</div>
+              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" happened={hasDeparted(b)} happenedLabel="Departed" />)}</div>
             }
           </div>
           <div className="card border-blue-200 bg-blue-50 md:col-span-2">

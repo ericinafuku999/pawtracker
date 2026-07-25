@@ -106,7 +106,7 @@ export default function QuickAddPage() {
     const totalExpected = dogDays * rate
     const ma = splitRevenueByMonth(form.arrival_date, form.departure_date, numDogs, rate)
 
-    await supabase.from('bookings').insert({
+    const { error } = await supabase.from('bookings').insert({
       user_id: session.user.id,
       customer_name: form.owner_name || 'Imported',
       dog_names: form.dog_name,
@@ -130,6 +130,11 @@ export default function QuickAddPage() {
     })
 
     setSaving(false)
+
+    if (error) {
+      alert(`Couldn't save booking: ${error.message}\n\nIf this mentions "arrival_time" or "departure_time", the database migration for those columns hasn't been run yet in Supabase.`)
+      return
+    }
 
     if (addAnother) {
       const today = new Date()

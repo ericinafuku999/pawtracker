@@ -167,12 +167,14 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       month_allocations: ma,
       updated_at: new Date().toISOString(),
     }
-    if (isEdit) {
-      await supabase.from('bookings').update(payload).eq('id', bookingId)
-    } else {
-      await supabase.from('bookings').insert({ ...payload, created_at: new Date().toISOString() })
-    }
+    const { error } = isEdit
+      ? await supabase.from('bookings').update(payload).eq('id', bookingId)
+      : await supabase.from('bookings').insert({ ...payload, created_at: new Date().toISOString() })
     setSaving(false)
+    if (error) {
+      alert(`Couldn't save booking: ${error.message}\n\nIf this mentions "arrival_time" or "departure_time", the database migration for those columns hasn't been run yet in Supabase.`)
+      return
+    }
     if (addAnother) {
       // Reset form for another booking
       setForm({
