@@ -189,6 +189,8 @@ export default function Dashboard() {
     return arr <= today && dep > today
   })
 
+  function dogCount(bs: Booking[]) { return bs.reduce((s, b) => s + b.number_of_dogs, 0) }
+
   const persistentUnpaid = bookings.filter(b => {
     if (b.status === 'cancelled') return false
     if (b.payment_status === 'paid') return false
@@ -488,7 +490,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🟢</span>
               <div className="font-semibold text-sm text-emerald-800">Arriving Today</div>
-              <span className="badge bg-emerald-200 text-emerald-800 ml-auto">{arrivingToday.length}</span>
+              <span className="badge bg-emerald-200 text-emerald-800 ml-auto">{dogCount(arrivingToday)}</span>
             </div>
             {arrivingToday.length === 0
               ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
@@ -499,7 +501,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🌅</span>
               <div className="font-semibold text-sm text-teal-800">Arriving Tomorrow</div>
-              <span className="badge bg-teal-200 text-teal-800 ml-auto">{arrivingTomorrow.length}</span>
+              <span className="badge bg-teal-200 text-teal-800 ml-auto">{dogCount(arrivingTomorrow)}</span>
             </div>
             {arrivingTomorrow.length === 0
               ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
@@ -510,7 +512,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🔴</span>
               <div className="font-semibold text-sm text-red-800">Departing Today</div>
-              <span className="badge bg-red-200 text-red-800 ml-auto">{departingToday.length}</span>
+              <span className="badge bg-red-200 text-red-800 ml-auto">{dogCount(departingToday)}</span>
             </div>
             {departingToday.length === 0
               ? <div className="text-xs text-red-500 text-center py-2">None today</div>
@@ -521,7 +523,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🌇</span>
               <div className="font-semibold text-sm text-orange-800">Departing Tomorrow</div>
-              <span className="badge bg-orange-200 text-orange-800 ml-auto">{departingTomorrow.length}</span>
+              <span className="badge bg-orange-200 text-orange-800 ml-auto">{dogCount(departingTomorrow)}</span>
             </div>
             {departingTomorrow.length === 0
               ? <div className="text-xs text-orange-400 text-center py-2">None tomorrow</div>
@@ -532,7 +534,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🏠</span>
               <div className="font-semibold text-sm text-blue-800">Currently Here</div>
-              <span className="badge bg-blue-200 text-blue-800 ml-auto">{currentlyHere.length}</span>
+              <span className="badge bg-blue-200 text-blue-800 ml-auto">{dogCount(currentlyHere)}</span>
             </div>
             {currentlyHere.length === 0
               ? <div className="text-xs text-blue-500 text-center py-2">No guests right now</div>
