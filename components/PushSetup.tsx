@@ -11,7 +11,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
-type State = 'checking' | 'unsupported' | 'blocked' | 'off' | 'on'
+type State = 'checking' | 'unconfigured' | 'unsupported' | 'blocked' | 'off' | 'on'
 
 export default function PushSetup() {
   const [state, setState] = useState<State>('checking')
@@ -19,6 +19,7 @@ export default function PushSetup() {
   const supabase = createClient()
 
   async function refreshStatus() {
+    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) { setState('unconfigured'); return }
     const ok = typeof window !== 'undefined' && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
     if (!ok) { setState('unsupported'); return }
     if (Notification.permission === 'denied') { setState('blocked'); return }
@@ -96,6 +97,14 @@ export default function PushSetup() {
   }
 
   if (state === 'checking') return null
+
+  if (state === 'unconfigured') {
+    return (
+      <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+        ⚠️ Notification setup isn't loaded on this device yet. Fully close this browser tab/app and reopen PawTracker (on iPhone: swipe it away from the app switcher first) to pick up the latest version, then check back here.
+      </div>
+    )
+  }
 
   if (state === 'unsupported') {
     return (
