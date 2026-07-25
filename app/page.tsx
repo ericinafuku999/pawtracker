@@ -46,6 +46,28 @@ function filterBookings(bookings: Booking[], period: Period, pickedMonth: string
   })
 }
 
+function filterExpenses(expenses: Expense[], period: Period, pickedMonth: string, customStart: string, customEnd: string) {
+  const now = new Date()
+  const nowMonth = getMonthKey(now)
+  const nowQuarter = Math.floor(now.getMonth() / 3)
+  const nowYear = now.getFullYear()
+  return expenses.filter(e => {
+    if (period === 'all') return true
+    const expMonth = e.expense_date.substr(0, 7)
+    const [y, m] = expMonth.split('-').map(Number)
+    if (period === 'pick') return expMonth === pickedMonth
+    if (period === 'custom') {
+      if (!customStart || !customEnd) return false
+      const d = parseLocalDate(e.expense_date)
+      return d >= parseLocalDate(customStart) && d <= parseLocalDate(customEnd)
+    }
+    if (period === 'month') return expMonth === nowMonth
+    if (period === 'quarter') return Math.floor((m - 1) / 3) === nowQuarter && y === nowYear
+    if (period === 'year') return y === nowYear
+    return true
+  })
+}
+
 function getMonthRevenue(bookings: Booking[]) {
   const monthMap: Record<string, { rover: number; venmo: number }> = {}
   bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid' && totalAmount(b) > 0).forEach(b => {
@@ -433,8 +455,11 @@ export default function Dashboard() {
   const cancelled = bookings.filter(b => b.status === 'cancelled')
   const lostRev = cancelled.reduce((s, b) => s + b.total_revenue, 0)
   const dogDays = bks.reduce((s, b) => s + b.dog_days, 0)
-  const totalExp = expenses.reduce((s, e) => s + e.amount, 0)
-  const net = totalReceived - totalExp
+  // Net profit is "projected" because it's projected total (paid + unpaid) for the
+  // selected period minus that same period's expenses — not just cash already received.
+  const periodExpenses = filterExpenses(expenses, period, pickedMonth, customStart, customEnd)
+  const periodExp = periodExpenses.reduce((s, e) => s + e.amount, 0)
+  const projectedNet = projectedTotal - periodExp
 
   const monthMap = getMonthRevenue(bookings)
   const chartData = Object.entries(monthMap)
@@ -451,11 +476,11 @@ export default function Dashboard() {
     { label: 'Revenue Received', value: formatCurrency(totalReceived), sub: `Rover ${formatCurrency(rover)} · Venmo ${formatCurrency(venmo)}` },
     { label: 'Expected Revenue', value: formatCurrency(expectedRevenue), sub: `Rover ${formatCurrency(expectedRover)} · Venmo ${formatCurrency(expectedVenmo)}` },
     { label: 'Projected Total', value: formatCurrency(projectedTotal), sub: `paid + unpaid` },
-    { label: 'Net Profit', value: formatCurrency(net), color: net >= 0 ? 'text-emerald-600' : 'text-red-500', sub: `after $${totalExp.toFixed(0)} expenses` },
+    { label: 'Projected Net Profit', value: formatCurrency(projectedNet), color: projectedNet >= 0 ? 'text-emerald-600' : 'text-red-500', sub: `projected total − $${periodExp.toFixed(0)} expenses` },
     { label: 'Dog-Days', value: dogDays.toString(), sub: dogDays ? `${formatCurrency(projectedTotal / dogDays)}/day` : '' },
-    { label: 'Total Expenses', value: formatCurrency(totalExp) },
+    { label: 'Total Expenses', value: formatCurrency(periodExp) },
     { label: 'Cancelled', value: cancelled.length.toString(), sub: `${formatCurrency(lostRev)} lost` },
-    { label: 'Margin', value: totalReceived > 0 ? ((net / totalReceived) * 100).toFixed(0) + '%' : '—' },
+    { label: 'Margin', value: projectedTotal > 0 ? ((projectedNet / projectedTotal) * 100).toFixed(0) + '%' : '—' },
   ]
 
   const periods: { k: Period; label: string }[] = [
