@@ -49,9 +49,21 @@ create table if not exists expenses (
   updated_at timestamptz default now()
 );
 
+-- Push notification subscriptions (one row per device that enables alerts)
+create table if not exists push_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth text not null,
+  created_at timestamptz default now()
+);
+
 -- Row Level Security: users can only see their own data
 alter table bookings enable row level security;
 alter table expenses enable row level security;
+alter table push_subscriptions enable row level security;
 
 create policy "Users see own bookings" on bookings for all using (auth.uid() = user_id);
 create policy "Users see own expenses" on expenses for all using (auth.uid() = user_id);
+create policy "Users manage own push subscriptions" on push_subscriptions for all using (auth.uid() = user_id);

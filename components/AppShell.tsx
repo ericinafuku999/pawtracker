@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, usePathname } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
+import PushSetup from '@/components/PushSetup'
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
@@ -41,6 +42,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar />
       {/* Add top padding on mobile for the fixed header bar */}
       <main className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50 pt-16 md:pt-6">
+        <PushSetup />
         {children}
       </main>
     </div>

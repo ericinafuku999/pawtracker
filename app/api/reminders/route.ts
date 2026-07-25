@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import webpush from 'web-push'
 import { Booking } from '@/lib/types'
 import { toDateTime, formatTime } from '@/lib/utils'
 
@@ -15,41 +16,19 @@ function minutesUntil(target: Date, now: Date) {
   return (target.getTime() - now.getTime()) / 60000
 }
 
-async function sendSms(to: string, body: string) {
-  const sid = process.env.TWILIO_ACCOUNT_SID
-  const token = process.env.TWILIO_AUTH_TOKEN
-  const from = process.env.TWILIO_FROM_NUMBER
-  if (!sid || !token || !from) {
-    throw new Error('Twilio env vars not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER)')
-  }
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
-    },
-    body: new URLSearchParams({ To: to, From: from, Body: body }),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Twilio send failed (${res.status}): ${text}`)
-  }
-}
-
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret')
   if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   }
 
-  const numbers = (process.env.NOTIFY_PHONE_NUMBERS || '')
-    .split(',')
-    .map(n => n.trim())
-    .filter(Boolean)
-
-  if (numbers.length === 0) {
-    return NextResponse.json({ error: 'NOTIFY_PHONE_NUMBERS not configured' }, { status: 500 })
+  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const vapidPrivate = process.env.VAPID_PRIVATE_KEY
+  const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@example.com'
+  if (!vapidPublic || !vapidPrivate) {
+    return NextResponse.json({ error: 'VAPID keys not configured' }, { status: 500 })
   }
+  webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate)
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -72,6 +51,36 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Cache subscriptions per user_id since a household typically shares one login
+  // across a couple of devices/phones.
+  const subsByUser = new Map<string, any[]>()
+  async function getSubs(userId: string) {
+    if (!subsByUser.has(userId)) {
+      const { data } = await supabase.from('push_subscriptions').select('*').eq('user_id', userId)
+      subsByUser.set(userId, data || [])
+    }
+    return subsByUser.get(userId)!
+  }
+
+  async function pushToUser(userId: string, title: string, body: string, url: string) {
+    const subs = await getSubs(userId)
+    for (const sub of subs) {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          JSON.stringify({ title, body, url })
+        )
+      } catch (e: any) {
+        // Expired/invalid subscription (device unsubscribed, browser data cleared, etc.) — remove it.
+        if (e.statusCode === 404 || e.statusCode === 410) {
+          await supabase.from('push_subscriptions').delete().eq('id', sub.id)
+        } else {
+          throw e
+        }
+      }
+    }
+  }
+
   const sent: string[] = []
   const errors: string[] = []
 
@@ -82,9 +91,9 @@ export async function GET(req: NextRequest) {
       const mins = minutesUntil(target, now)
       if (mins <= EARLY_WINDOW_MIN && mins > LATE_WINDOW_MIN) {
         const label = booking.dog_names || booking.customer_name || 'A dog'
-        const body = `🐾 PawTracker: ${label} (${booking.customer_name}) arrives in ${Math.max(0, Math.round(mins))} min, at ${formatTime(booking.arrival_time)}.`
+        const body = `${label} (${booking.customer_name}) arrives in ${Math.max(0, Math.round(mins))} min, at ${formatTime(booking.arrival_time)}.`
         try {
-          for (const to of numbers) await sendSms(to, body)
+          await pushToUser(booking.user_id, '🟢 Arriving soon', body, `/bookings/${booking.id}`)
           await supabase.from('bookings').update({ arrival_reminder_sent: true }).eq('id', booking.id)
           sent.push(`arrival:${booking.id}`)
         } catch (e: any) {
@@ -99,9 +108,9 @@ export async function GET(req: NextRequest) {
       const mins = minutesUntil(target, now)
       if (mins <= EARLY_WINDOW_MIN && mins > LATE_WINDOW_MIN) {
         const label = booking.dog_names || booking.customer_name || 'A dog'
-        const body = `🐾 PawTracker: ${label} (${booking.customer_name}) departs in ${Math.max(0, Math.round(mins))} min, at ${formatTime(booking.departure_time)}.`
+        const body = `${label} (${booking.customer_name}) departs in ${Math.max(0, Math.round(mins))} min, at ${formatTime(booking.departure_time)}.`
         try {
-          for (const to of numbers) await sendSms(to, body)
+          await pushToUser(booking.user_id, '🔴 Departing soon', body, `/bookings/${booking.id}`)
           await supabase.from('bookings').update({ departure_reminder_sent: true }).eq('id', booking.id)
           sent.push(`departure:${booking.id}`)
         } catch (e: any) {
