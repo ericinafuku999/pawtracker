@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Booking, Expense } from '@/lib/types'
-import { formatCurrency, monthLabel, formatDate } from '@/lib/utils'
+import { formatCurrency, monthLabel, formatDate, toDateTime, formatTime } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
@@ -182,11 +182,14 @@ export default function Dashboard() {
   const arrivingTomorrow = bookings.filter(b => b.status !== 'cancelled' && b.arrival_date === tomorrowStr)
   const departingToday = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === todayStr)
   const departingTomorrow = bookings.filter(b => b.status !== 'cancelled' && b.departure_date === tomorrowStr)
+  // "Currently here" is time-aware: a dog counts until its actual departure time passes
+  // (defaulting to end-of-day if no departure time is set), not just the calendar date.
+  const now = new Date()
   const currentlyHere = bookings.filter(b => {
     if (b.status === 'cancelled') return false
-    const arr = parseLocalDate(b.arrival_date)
-    const dep = parseLocalDate(b.departure_date)
-    return arr <= today && dep > today
+    const arrivalDT = toDateTime(b.arrival_date, b.arrival_time, 0, 0)
+    const departureDT = toDateTime(b.departure_date, b.departure_time, 23, 59)
+    return arrivalDT <= now && departureDT >= now
   })
 
   function dogCount(bs: Booking[]) { return bs.reduce((s, b) => s + b.number_of_dogs, 0) }
@@ -213,7 +216,7 @@ export default function Dashboard() {
     ) || null
   }
 
-  function DogCard({ booking, showDates = false }: { booking: Booking; showDates?: boolean }) {
+  function DogCard({ booking, showDates = false, time }: { booking: Booking; showDates?: boolean; time?: string }) {
     const profile = getProfile(booking)
     function handleTileClick() { router.push(`/bookings/${booking.id}`) }
     function handlePhotoClick(e: React.MouseEvent) {
@@ -235,8 +238,13 @@ export default function Dashboard() {
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-xs truncate">{booking.dog_names}</div>
           <div className="text-xs text-gray-400 truncate">{booking.customer_name}</div>
-          {showDates && <div className="text-xs text-gray-300">→ {formatDate(booking.departure_date)}</div>}
+          {showDates && (
+            <div className="text-xs text-gray-300">
+              → {formatDate(booking.departure_date)}{booking.departure_time ? ` @ ${formatTime(booking.departure_time)}` : ''}
+            </div>
+          )}
         </div>
+        {time && <span className="text-xs text-gray-400 flex-shrink-0">{time}</span>}
         <span className={`badge text-xs flex-shrink-0 ${booking.payment_type === 'Rover' ? 'badge-teal' : 'badge-amber'}`}>{booking.payment_type}</span>
       </div>
     )
@@ -494,7 +502,7 @@ export default function Dashboard() {
             </div>
             {arrivingToday.length === 0
               ? <div className="text-xs text-emerald-600 text-center py-2">None today</div>
-              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+              : <div className="space-y-2">{arrivingToday.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.arrival_time)} />)}</div>
             }
           </div>
           <div className="card border-teal-200 bg-teal-50">
@@ -505,7 +513,7 @@ export default function Dashboard() {
             </div>
             {arrivingTomorrow.length === 0
               ? <div className="text-xs text-teal-600 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
+              : <div className="space-y-2">{arrivingTomorrow.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.arrival_time)} />)}</div>
             }
           </div>
           <div className="card border-red-200 bg-red-50">
@@ -516,7 +524,7 @@ export default function Dashboard() {
             </div>
             {departingToday.length === 0
               ? <div className="text-xs text-red-500 text-center py-2">None today</div>
-              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} />)}</div>
+              : <div className="space-y-2">{departingToday.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.departure_time)} />)}</div>
             }
           </div>
           <div className="card border-orange-200 bg-orange-50">
@@ -527,7 +535,7 @@ export default function Dashboard() {
             </div>
             {departingTomorrow.length === 0
               ? <div className="text-xs text-orange-400 text-center py-2">None tomorrow</div>
-              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} />)}</div>
+              : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} time={formatTime(b.departure_time)} />)}</div>
             }
           </div>
           <div className="card border-blue-200 bg-blue-50 md:col-span-2">

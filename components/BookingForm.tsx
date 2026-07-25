@@ -19,7 +19,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
   const isEdit = !!bookingId
   const [form, setForm] = useState({
     customer_name: '', dog_names: '', number_of_dogs: '1', rate_per_dog_day: '50',
-    arrival_date: '', departure_date: '', dog_days_override: '',
+    arrival_date: '', arrival_time: '', departure_date: '', departure_time: '', dog_days_override: '',
     payment_type: 'Rover', payment_status: 'unpaid', amount_received: '0',
     tip_amount: '0',
     status: 'active', cancellation_reason: '', notes: ''
@@ -101,7 +101,8 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           setForm({
             customer_name: b.customer_name, dog_names: b.dog_names,
             number_of_dogs: String(b.number_of_dogs), rate_per_dog_day: String(b.rate_per_dog_day),
-            arrival_date: b.arrival_date, departure_date: b.departure_date,
+            arrival_date: b.arrival_date, arrival_time: b.arrival_time || '',
+            departure_date: b.departure_date, departure_time: b.departure_time || '',
             dog_days_override: b.dog_days_override ? String(b.dog_days_override) : '',
             payment_type: b.payment_type, payment_status: b.payment_status,
             amount_received: String(b.amount_received), tip_amount: String(b.tip_amount || 0),
@@ -148,7 +149,9 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       dog_names: form.dog_names,
       number_of_dogs: n,
       arrival_date: form.arrival_date,
+      arrival_time: form.arrival_time || null,
       departure_date: form.departure_date,
+      departure_time: form.departure_time || null,
       number_of_days: days,
       dog_days: dd,
       dog_days_override: ov,
@@ -174,7 +177,7 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       // Reset form for another booking
       setForm({
         customer_name: '', dog_names: '', number_of_dogs: '1', rate_per_dog_day: '50',
-        arrival_date: '', departure_date: '', dog_days_override: '',
+        arrival_date: '', arrival_time: '', departure_date: '', departure_time: '', dog_days_override: '',
         payment_type: 'Rover', payment_status: 'unpaid', amount_received: '0',
         tip_amount: '0',
         status: 'active', cancellation_reason: '', notes: ''
@@ -276,8 +279,20 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
           <div><label className="label">Override Dog-Days</label><input className="input text-base sm:text-sm" type="number" placeholder="Auto" value={form.dog_days_override} onChange={set('dog_days_override')} /></div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div><label className="label">Arrival Date *</label><input className="input text-base sm:text-sm" type="date" value={form.arrival_date} onChange={set('arrival_date')} /></div>
-          <div><label className="label">Departure Date *</label><input className="input text-base sm:text-sm" type="date" value={form.departure_date} onChange={set('departure_date')} /></div>
+          <div>
+            <label className="label">Arrival Date *</label>
+            <div className="flex gap-2">
+              <input className="input text-base sm:text-sm flex-1" type="date" value={form.arrival_date} onChange={set('arrival_date')} />
+              <input className="input text-base sm:text-sm w-28" type="time" value={form.arrival_time} onChange={set('arrival_time')} title="Arrival time (optional)" />
+            </div>
+          </div>
+          <div>
+            <label className="label">Departure Date *</label>
+            <div className="flex gap-2">
+              <input className="input text-base sm:text-sm flex-1" type="date" value={form.departure_date} onChange={set('departure_date')} />
+              <input className="input text-base sm:text-sm w-28" type="time" value={form.departure_time} onChange={set('departure_time')} title="Departure time (optional)" />
+            </div>
+          </div>
         </div>
 
         {calc && (

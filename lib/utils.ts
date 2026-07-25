@@ -53,3 +53,22 @@ export function monthLabel(key: string) {
   const [y, m] = key.split('-')
   return new Date(+y, +m - 1).toLocaleString('en-US', { month: 'short', year: '2-digit' })
 }
+
+// Combines a 'YYYY-MM-DD' date with an optional 'HH:MM' time into a real Date.
+// If no time is given, falls back to the provided hour/minute (e.g. start or end of day).
+export function toDateTime(dateStr: string, timeStr: string | null | undefined, fallbackHour: number, fallbackMinute: number) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (timeStr) {
+    const [hh, mm] = timeStr.split(':').map(Number)
+    return new Date(y, m - 1, d, hh, mm)
+  }
+  return new Date(y, m - 1, d, fallbackHour, fallbackMinute)
+}
+
+// Formats 'HH:MM' (24hr) into e.g. '2:00 PM'
+export function formatTime(t: string | null | undefined) {
+  if (!t) return ''
+  const [hh, mm] = t.split(':').map(Number)
+  const d = new Date(2000, 0, 1, hh, mm)
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+}

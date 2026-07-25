@@ -16,7 +16,9 @@ export interface Booking {
   dog_names: string
   number_of_dogs: number
   arrival_date: string
+  arrival_time: string | null
   departure_date: string
+  departure_time: string | null
   number_of_days: number
   dog_days: number
   dog_days_override: number | null

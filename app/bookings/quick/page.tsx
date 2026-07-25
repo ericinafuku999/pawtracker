@@ -19,7 +19,9 @@ export default function QuickAddPage() {
     dog_name: '',
     owner_name: '',
     arrival_date: '',
+    arrival_time: '',
     departure_date: '',
+    departure_time: '',
     expected_amount: '45',
     payment_type: 'Rover',
   })
@@ -110,7 +112,9 @@ export default function QuickAddPage() {
       dog_names: form.dog_name,
       number_of_dogs: numDogs,
       arrival_date: form.arrival_date,
+      arrival_time: form.arrival_time || null,
       departure_date: form.departure_date,
+      departure_time: form.departure_time || null,
       number_of_days: days,
       dog_days: dogDays,
       dog_days_override: null,
@@ -130,7 +134,7 @@ export default function QuickAddPage() {
     if (addAnother) {
       const today = new Date()
       const str = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-      setForm(f => ({ ...f, dog_name: '', owner_name: '', arrival_date: str, departure_date: str, expected_amount: '45' }))
+      setForm(f => ({ ...f, dog_name: '', owner_name: '', arrival_date: str, arrival_time: '', departure_date: str, departure_time: '', expected_amount: '45' }))
       setSelectedDog(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -227,6 +231,18 @@ export default function QuickAddPage() {
           <div>
             <label className="label text-sm">Departure</label>
             <input className="input text-base py-3" type="date" value={form.departure_date} onChange={set('departure_date')} />
+          </div>
+        </div>
+
+        {/* Times (optional) */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="label text-sm">Arrival Time <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input className="input text-base py-3" type="time" value={form.arrival_time} onChange={set('arrival_time')} />
+          </div>
+          <div>
+            <label className="label text-sm">Departure Time <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input className="input text-base py-3" type="time" value={form.departure_time} onChange={set('departure_time')} />
           </div>
         </div>
 
