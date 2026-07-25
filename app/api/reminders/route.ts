@@ -8,9 +8,11 @@ export const dynamic = 'force-dynamic'
 
 const REMINDER_MINUTES_BEFORE = 15
 // Grace window so a booking is never missed even if a run is late or skipped,
-// but also never fires more than a few minutes after the ideal moment.
-const EARLY_WINDOW_MIN = REMINDER_MINUTES_BEFORE // fire any time from 15 min before...
-const LATE_WINDOW_MIN = -5 // ...up to 5 min after, in case a cron run was delayed
+// but also never fires too long after the ideal moment. Widened to tolerate
+// scheduler jitter/delays from free-tier cron triggers (e.g. GitHub Actions
+// "best effort" schedules, which can be delayed well beyond 5 minutes).
+const EARLY_WINDOW_MIN = 25 // fire any time from 25 min before...
+const LATE_WINDOW_MIN = -15 // ...up to 15 min after, in case a cron run was delayed
 
 function minutesUntil(target: Date, now: Date) {
   return (target.getTime() - now.getTime()) / 60000
