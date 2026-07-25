@@ -20,7 +20,7 @@ export default function QuickAddPage() {
     owner_name: '',
     arrival_date: '',
     departure_date: '',
-    rate: '45',
+    expected_amount: '45',
     payment_type: 'Rover',
   })
   const [allDogs, setAllDogs] = useState<DogProfile[]>([])
@@ -66,7 +66,7 @@ export default function QuickAddPage() {
       ...f,
       dog_name: dog.dog_name,
       owner_name: dog.owner_name,
-      rate: String(dog.default_rate),
+      expected_amount: String(dog.default_rate),
     }))
     setSuggestions([])
     setShowSuggestions(false)
@@ -74,7 +74,7 @@ export default function QuickAddPage() {
 
   function clearDog() {
     setSelectedDog(null)
-    setForm(f => ({ ...f, dog_name: '', owner_name: '', rate: '45' }))
+    setForm(f => ({ ...f, dog_name: '', owner_name: '', expected_amount: '45' }))
   }
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -84,7 +84,7 @@ export default function QuickAddPage() {
     ? (() => {
         const numDogs = selectedDog ? selectedDog.number_of_dogs : 1
         const { days, dogDays } = calcDogDays(form.arrival_date, form.departure_date, numDogs)
-        const revenue = dogDays * (parseFloat(form.rate) || 0)
+        const revenue = dogDays * (parseFloat(form.expected_amount) || 0)
         return { days, dogDays, revenue, numDogs }
       })()
     : null
@@ -98,9 +98,10 @@ export default function QuickAddPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session?.user) return
 
-    const rate = parseFloat(form.rate) || 45
+    const rate = parseFloat(form.expected_amount) || 45
     const numDogs = selectedDog ? selectedDog.number_of_dogs : 1
     const { days, dogDays } = calcDogDays(form.arrival_date, form.departure_date, numDogs)
+    const totalExpected = dogDays * rate
     const ma = splitRevenueByMonth(form.arrival_date, form.departure_date, numDogs, rate)
 
     await supabase.from('bookings').insert({
@@ -114,10 +115,10 @@ export default function QuickAddPage() {
       dog_days: dogDays,
       dog_days_override: null,
       rate_per_dog_day: rate,
-      total_revenue: dogDays * rate,
+      total_revenue: totalExpected,
       payment_type: form.payment_type,
       payment_status: 'unpaid',
-      amount_received: 0,
+      amount_received: totalExpected,
       status: 'active',
       month_allocations: ma,
       created_at: new Date().toISOString(),
@@ -129,7 +130,7 @@ export default function QuickAddPage() {
     if (addAnother) {
       const today = new Date()
       const str = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-      setForm(f => ({ ...f, dog_name: '', owner_name: '', arrival_date: str, departure_date: str, rate: '45' }))
+      setForm(f => ({ ...f, dog_name: '', owner_name: '', arrival_date: str, departure_date: str, expected_amount: '45' }))
       setSelectedDog(null)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -229,10 +230,10 @@ export default function QuickAddPage() {
           </div>
         </div>
 
-        {/* Rate */}
+        {/* Expected Amount */}
         <div className="mb-4">
-          <label className="label text-sm">Rate ($/day)</label>
-          <input className="input text-base py-3" type="number" value={form.rate} onChange={set('rate')} />
+          <label className="label text-sm">Expected Amount ($/day)</label>
+          <input className="input text-base py-3" type="number" value={form.expected_amount} onChange={set('expected_amount')} />
         </div>
 
         {/* Payment type */}
@@ -265,7 +266,7 @@ export default function QuickAddPage() {
             </div>
             <div>
               <div className="text-xl font-bold text-emerald-700">${calc.revenue}</div>
-              <div className="text-xs text-gray-500">Revenue</div>
+              <div className="text-xs text-gray-500">Expected</div>
             </div>
           </div>
         )}

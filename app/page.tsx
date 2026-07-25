@@ -621,49 +621,22 @@ export default function Dashboard() {
         <BookingCalendar bookings={bookings} searchQuery={calSearch} dogProfiles={dogProfiles} />
       </div>
 
-      {/* Recent bookings + expenses */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="card">
-          <div className="flex justify-between items-center mb-3">
-            <div className="font-medium text-sm">Recent Bookings</div>
-            <Link href="/bookings" className="text-xs text-emerald-600">View all →</Link>
-          </div>
-          {bookings.length === 0 ? (
-            <p className="text-sm text-gray-400">No bookings yet. <Link href="/bookings/new" className="text-emerald-600">Add one →</Link></p>
-          ) : (
-            <table className="w-full">
-              <thead><tr><th className="th">Customer</th><th className="th">Dogs</th><th className="th">Expected</th><th className="th">Status</th></tr></thead>
-              <tbody>
-                {bookings.slice(0, 5).map(b => (
-                  <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onDoubleClick={() => router.push(`/bookings/${b.id}`)}>
-                    <td className="td font-medium">{b.customer_name}</td>
-                    <td className="td text-gray-500">{b.dog_names}</td>
-                    <td className="td">{formatCurrency(totalAmount(b))}</td>
-                    <td className="td">
-                      <span className={`badge ${b.status === 'active' ? 'badge-blue' : b.status === 'completed' ? 'badge-green' : 'badge-red'}`}>{b.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-        <div className="card">
-          <div className="font-medium text-sm mb-3">Expenses by Category</div>
-          {expChartData.length === 0 ? (
-            <p className="text-sm text-gray-400">No expenses yet. <Link href="/expenses/new" className="text-emerald-600">Add one →</Link></p>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <PieChart>
-                <Pie data={expChartData} cx="50%" cy="50%" outerRadius={70} dataKey="value">
-                  {expChartData.map((_, i) => <Cell key={i} fill={pieColors[i % pieColors.length]} />)}
-                </Pie>
-                <Tooltip formatter={(v: number) => '$' + v} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+      {/* Expenses by category */}
+      <div className="card">
+        <div className="font-medium text-sm mb-3">Expenses by Category</div>
+        {expChartData.length === 0 ? (
+          <p className="text-sm text-gray-400">No expenses yet. <Link href="/expenses/new" className="text-emerald-600">Add one →</Link></p>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <PieChart>
+              <Pie data={expChartData} cx="50%" cy="50%" outerRadius={70} dataKey="value">
+                {expChartData.map((_, i) => <Cell key={i} fill={pieColors[i % pieColors.length]} />)}
+              </Pie>
+              <Tooltip formatter={(v: number) => '$' + v} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </div>
     </AppShell>
   )
