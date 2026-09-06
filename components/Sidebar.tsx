@@ -15,6 +15,10 @@ const navItems = [
     { href: '/bookings/new', label: 'Add Booking', icon: '+' },
     { href: '/bookings/quick', label: 'Quick Add', icon: '⚡' },
   ]},
+  { section: 'Meet & Greets', items: [
+    { href: '/meet-greets', label: 'All Meet & Greets', icon: '🤝' },
+    { href: '/meet-greets/new', label: 'Add Meet & Greet', icon: '+' },
+  ]},
   { section: 'Dogs & Customers', items: [
     { href: '/dogs', label: 'Dog Profiles', icon: '🐾' },
     { href: '/dogs/new', label: 'Add Dog', icon: '+' },

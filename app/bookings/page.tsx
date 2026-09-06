@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Booking } from '@/lib/types'
+import { Booking, MeetGreet } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import AppShell from '@/components/AppShell'
 import BookingCalendar from '@/components/BookingCalendar'
@@ -18,6 +18,7 @@ interface DogProfile {
 function BookingsContent() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [dogProfiles, setDogProfiles] = useState<DogProfile[]>([])
+  const [meetGreets, setMeetGreets] = useState<MeetGreet[]>([])
   const [loading, setLoading] = useState(true)
   const [view, setView] = useState<'list' | 'calendar'>('calendar')
   const [search, setSearch] = useState('')
@@ -39,12 +40,14 @@ function BookingsContent() {
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: bks }, { data: dogs }] = await Promise.all([
+    const [{ data: bks }, { data: dogs }, { data: mgs }] = await Promise.all([
       supabase.from('bookings').select('*').eq('user_id', user.id).order('departure_date', { ascending: false }),
       supabase.from('dogs').select('id, dog_name, owner_name, photo_url').eq('user_id', user.id),
+      supabase.from('meet_greets').select('*').eq('user_id', user.id),
     ])
     setBookings(bks || [])
     setDogProfiles(dogs || [])
+    setMeetGreets(mgs || [])
     setLoading(false)
     const scrollY = sessionStorage.getItem('bookings_scroll')
     if (scrollY) {
@@ -209,7 +212,7 @@ function BookingsContent() {
 
       {view === 'calendar' ? (
         <div className="card">
-          <BookingCalendar bookings={bookings} onRefresh={load} searchQuery={search} dogProfiles={dogProfiles} />
+          <BookingCalendar bookings={bookings} onRefresh={load} searchQuery={search} dogProfiles={dogProfiles} meetGreets={meetGreets} />
         </div>
       ) : (
         <>

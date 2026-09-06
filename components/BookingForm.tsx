@@ -83,7 +83,13 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
     const dogId = searchParams?.get('dogId')
     if (dogId && allDogs.length > 0) {
       const dog = allDogs.find(d => d.id === dogId)
-      if (dog) selectDog(dog)
+      if (dog) { selectDog(dog); return }
+    }
+    // Prefill directly (e.g. converting a Meet & Greet with no dog profile yet).
+    const customerName = searchParams?.get('customerName')
+    const dogNames = searchParams?.get('dogNames')
+    if (customerName || dogNames) {
+      setForm(f => ({ ...f, customer_name: customerName || f.customer_name, dog_names: dogNames || f.dog_names }))
     }
   }, [searchParams, allDogs])
 

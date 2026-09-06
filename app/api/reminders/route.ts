@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
-import { Booking } from '@/lib/types'
+import { Booking, MeetGreet } from '@/lib/types'
 import { toDateTimeInZone, formatTime } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
@@ -64,6 +64,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Meet & Greets scheduled today (not yet reminded) — same 15-min-before push as bookings.
+  // Don't hard-fail the whole route if this table/migration isn't there yet; just skip it.
+  const { data: meetGreets, error: mgError } = await supabase
+    .from('meet_greets')
+    .select('*')
+    .eq('status', 'scheduled')
+    .eq('scheduled_date', todayStr)
+
   // Cache subscriptions per user_id since a household typically shares one login
   // across a couple of devices/phones.
   const subsByUser = new Map<string, any[]>()
@@ -96,6 +104,8 @@ export async function GET(req: NextRequest) {
 
   const sent: string[] = []
   const errors: string[] = []
+
+  if (mgError) errors.push(`meet_greets query: ${mgError.message}`)
 
   for (const booking of (bookings || []) as Booking[]) {
     // Arrival reminder
@@ -133,5 +143,22 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ checked: (bookings || []).length, sent, errors })
+  for (const mg of (meetGreets || []) as MeetGreet[]) {
+    if (!mg.scheduled_time || mg.reminder_sent) continue
+    const target = toDateTimeInZone(mg.scheduled_date, mg.scheduled_time, BUSINESS_TIMEZONE, 0, 0)
+    const mins = minutesUntil(target, now)
+    if (mins <= EARLY_WINDOW_MIN && mins > LATE_WINDOW_MIN) {
+      const label = mg.dog_names || mg.customer_name || 'A meet & greet'
+      const body = `${label} (${mg.customer_name}) meet & greet in ${Math.max(0, Math.round(mins))} min, at ${formatTime(mg.scheduled_time)}.`
+      try {
+        await pushToUser(mg.user_id, '🤝 Meet & Greet soon', body, `/meet-greets/${mg.id}`)
+        await supabase.from('meet_greets').update({ reminder_sent: true }).eq('id', mg.id)
+        sent.push(`meet_greet:${mg.id}`)
+      } catch (e: any) {
+        errors.push(`meet_greet:${mg.id}: ${e.message}`)
+      }
+    }
+  }
+
+  return NextResponse.json({ checked: (bookings || []).length + (meetGreets || []).length, sent, errors })
 }

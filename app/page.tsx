@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
-import { Booking, Expense } from '@/lib/types'
+import { Booking, Expense, MeetGreet } from '@/lib/types'
 import { formatCurrency, monthLabel, formatDate, toDateTime, formatTime } from '@/lib/utils'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 import AppShell from '@/components/AppShell'
@@ -115,6 +115,7 @@ function LiveClock() {
 export default function Dashboard() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
+  const [meetGreets, setMeetGreets] = useState<MeetGreet[]>([])
   const [dogProfiles, setDogProfiles] = useState<DogProfile[]>([])
   const [period, setPeriod] = useState<Period>('month')
   const [pickedMonth, setPickedMonth] = useState(getMonthKey(new Date()))
@@ -129,17 +130,21 @@ export default function Dashboard() {
   const [timeValue, setTimeValue] = useState('')
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
   const [amountValue, setAmountValue] = useState('')
+  const [editingMGTimeId, setEditingMGTimeId] = useState<string | null>(null)
+  const [mgTimeValue, setMgTimeValue] = useState('')
   const supabase = createClient()
   const router = useRouter()
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: bks }, { data: exps }, { data: dogs }] = await Promise.all([
+    const [{ data: bks }, { data: exps }, { data: dogs }, { data: mgs }] = await Promise.all([
       supabase.from('bookings').select('*').eq('user_id', user.id),
       supabase.from('expenses').select('*').eq('user_id', user.id),
       supabase.from('dogs').select('id, dog_name, owner_name, photo_url').eq('user_id', user.id),
+      supabase.from('meet_greets').select('*').eq('user_id', user.id),
     ])
+    setMeetGreets(mgs || [])
     setBookings(bks || [])
     setExpenses(exps || [])
     setDogProfiles(dogs || [])
@@ -285,6 +290,28 @@ export default function Dashboard() {
     setAmountValue('')
   }
 
+  function openMGTimeEdit(e: React.MouseEvent, mg: MeetGreet) {
+    e.stopPropagation()
+    setEditingMGTimeId(mg.id)
+    setMgTimeValue(mg.scheduled_time || '')
+  }
+
+  async function saveMGTime(mg: MeetGreet) {
+    const value = mgTimeValue || null
+    const { error } = await supabase.from('meet_greets').update({
+      scheduled_time: value,
+      reminder_sent: false,
+      updated_at: new Date().toISOString(),
+    }).eq('id', mg.id)
+    if (error) {
+      alert(`Couldn't save time: ${error.message}\n\nIf this mentions "meet_greets" not existing, that database migration hasn't been run yet in Supabase.`)
+      return
+    }
+    setMeetGreets(prev => prev.map(m => m.id === mg.id ? { ...m, scheduled_time: value, reminder_sent: false } : m))
+    setEditingMGTimeId(null)
+    setMgTimeValue('')
+  }
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
@@ -310,6 +337,9 @@ export default function Dashboard() {
   function hasDeparted(b: Booking) { return toDateTime(b.departure_date, b.departure_time, 23, 59) <= now }
 
   function dogCount(bs: Booking[]) { return bs.reduce((s, b) => s + b.number_of_dogs, 0) }
+
+  const mgToday = meetGreets.filter(mg => mg.status === 'scheduled' && mg.scheduled_date === todayStr)
+  const mgTomorrow = meetGreets.filter(mg => mg.status === 'scheduled' && mg.scheduled_date === tomorrowStr)
 
   const persistentUnpaid = bookings.filter(b => {
     if (b.status === 'cancelled') return false
@@ -418,6 +448,41 @@ export default function Dashboard() {
     )
   }
 
+  function MeetGreetCard({ meetGreet }: { meetGreet: MeetGreet }) {
+    function handleTileClick() { router.push(`/meet-greets/${meetGreet.id}`) }
+    const isEditingThisTime = editingMGTimeId === meetGreet.id
+    return (
+      <div onClick={handleTileClick} className="flex items-center gap-2 p-2 rounded-xl border bg-white border-gray-100 hover:border-violet-200 hover:shadow-sm transition-all cursor-pointer group">
+        <div className="w-9 h-9 rounded-lg overflow-hidden bg-violet-50 flex-shrink-0 flex items-center justify-center border border-violet-100">
+          <span className="text-base">🤝</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-xs truncate">{meetGreet.dog_names || meetGreet.customer_name}</div>
+          <div className="text-xs text-gray-400 truncate">{meetGreet.customer_name}</div>
+        </div>
+        {isEditingThisTime ? (
+          <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <input
+              type="time"
+              autoFocus
+              className="input text-xs py-1 px-1 w-[5.5rem]"
+              value={mgTimeValue}
+              onChange={e => setMgTimeValue(e.target.value)}
+            />
+            <button onClick={() => saveMGTime(meetGreet)} className="text-emerald-600 text-xs font-bold px-0.5">✓</button>
+            <button onClick={() => { setEditingMGTimeId(null); setMgTimeValue('') }} className="text-gray-400 text-xs px-0.5">✕</button>
+          </div>
+        ) : (
+          <button
+            onClick={e => openMGTimeEdit(e, meetGreet)}
+            className="text-xs text-gray-400 flex-shrink-0 hover:text-violet-600 hover:underline whitespace-nowrap">
+            {meetGreet.scheduled_time ? formatTime(meetGreet.scheduled_time) : '+ time'}
+          </button>
+        )}
+      </div>
+    )
+  }
+
   function TodayCard({
     icon, title, color, badgeColor, count, children, emptyText, emptyColor
   }: {
@@ -446,7 +511,8 @@ export default function Dashboard() {
   }
 
   const showTodayWidget = arrivingToday.length > 0 || arrivingTomorrow.length > 0 ||
-    departingToday.length > 0 || departingTomorrow.length > 0 || currentlyHere.length > 0
+    departingToday.length > 0 || departingTomorrow.length > 0 || currentlyHere.length > 0 ||
+    mgToday.length > 0 || mgTomorrow.length > 0
 
   const bks = filterBookings(bookings, period, pickedMonth, customStart, customEnd)
   const rover = bks.filter(b => b.payment_status === 'paid' && b.payment_type === 'Rover').reduce((s, b) => s + totalAmount(b), 0)
@@ -712,6 +778,28 @@ export default function Dashboard() {
               : <div className="space-y-2">{departingTomorrow.map(b => <DogCard key={b.id} booking={b} timeField="departure_time" happened={hasDeparted(b)} happenedLabel="Departed" />)}</div>
             }
           </div>
+          <div className="card border-violet-200 bg-violet-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🤝</span>
+              <div className="font-semibold text-sm text-violet-800">Meet & Greets Today</div>
+              <span className="badge bg-violet-200 text-violet-800 ml-auto">{mgToday.length}</span>
+            </div>
+            {mgToday.length === 0
+              ? <div className="text-xs text-violet-500 text-center py-2">None today</div>
+              : <div className="space-y-2">{mgToday.map(mg => <MeetGreetCard key={mg.id} meetGreet={mg} />)}</div>
+            }
+          </div>
+          <div className="card border-fuchsia-200 bg-fuchsia-50">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🤝</span>
+              <div className="font-semibold text-sm text-fuchsia-800">Meet & Greets Tomorrow</div>
+              <span className="badge bg-fuchsia-200 text-fuchsia-800 ml-auto">{mgTomorrow.length}</span>
+            </div>
+            {mgTomorrow.length === 0
+              ? <div className="text-xs text-fuchsia-500 text-center py-2">None tomorrow</div>
+              : <div className="space-y-2">{mgTomorrow.map(mg => <MeetGreetCard key={mg.id} meetGreet={mg} />)}</div>
+            }
+          </div>
           <div className="card border-blue-200 bg-blue-50 md:col-span-2">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">🏠</span>
@@ -802,7 +890,7 @@ export default function Dashboard() {
             <Link href="/bookings" className="text-xs text-emerald-600 whitespace-nowrap">View all →</Link>
           </div>
         </div>
-        <BookingCalendar bookings={bookings} searchQuery={calSearch} dogProfiles={dogProfiles} />
+        <BookingCalendar bookings={bookings} searchQuery={calSearch} dogProfiles={dogProfiles} meetGreets={meetGreets} />
       </div>
 
       {/* Expenses by category */}

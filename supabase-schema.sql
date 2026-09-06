@@ -69,13 +69,30 @@ create table if not exists blocked_days (
   unique (user_id, blocked_date)
 );
 
+-- Meet & Greet appointments (prospective clients, before a real booking exists)
+create table if not exists meet_greets (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  customer_name text not null,
+  dog_names text not null default '',
+  scheduled_date date not null,
+  scheduled_time time,
+  reminder_sent boolean not null default false,
+  status text not null default 'scheduled' check (status in ('scheduled', 'completed', 'cancelled')),
+  notes text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 -- Row Level Security: users can only see their own data
 alter table bookings enable row level security;
 alter table expenses enable row level security;
 alter table push_subscriptions enable row level security;
 alter table blocked_days enable row level security;
+alter table meet_greets enable row level security;
 
 create policy "Users see own bookings" on bookings for all using (auth.uid() = user_id);
 create policy "Users see own expenses" on expenses for all using (auth.uid() = user_id);
 create policy "Users manage own push subscriptions" on push_subscriptions for all using (auth.uid() = user_id);
 create policy "Users manage own blocked days" on blocked_days for all using (auth.uid() = user_id);
+create policy "Users manage own meet greets" on meet_greets for all using (auth.uid() = user_id);

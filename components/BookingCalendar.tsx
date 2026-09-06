@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { Booking } from '@/lib/types'
+import { Booking, MeetGreet } from '@/lib/types'
 import { useRouter } from 'next/navigation'
 import { formatDate, formatCurrency, formatTime, toDateTime } from '@/lib/utils'
 import { createClient } from '@/lib/supabase'
@@ -27,6 +27,11 @@ function getDogCountForDay(date: Date, bookings: Booking[]) {
     .filter(b => b.status !== 'cancelled')
     .filter(b => isBetween(date, parseD(b.arrival_date), parseD(b.departure_date)))
     .reduce((sum, b) => sum + b.number_of_dogs, 0)
+}
+
+function getMeetGreetsForDay(date: Date, meetGreets: MeetGreet[]) {
+  const str = dateToStr(date)
+  return meetGreets.filter(mg => mg.status !== 'cancelled' && mg.scheduled_date === str)
 }
 
 function DogCapacityBadge({ count }: { count: number }) {
@@ -66,9 +71,10 @@ interface Props {
   onRefresh?: () => void
   searchQuery?: string
   dogProfiles?: DogProfile[]
+  meetGreets?: MeetGreet[]
 }
 
-export default function BookingCalendar({ bookings, compact = false, onRefresh, searchQuery = '', dogProfiles = [] }: Props) {
+export default function BookingCalendar({ bookings, compact = false, onRefresh, searchQuery = '', dogProfiles = [], meetGreets = [] }: Props) {
   const [view, setView] = useState<'month' | 'week'>('month')
   const [current, setCurrent] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -309,6 +315,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const selectedDayBookings = selectedDay ? getBookingsForDay(selectedDay) : []
   const selectedDogCount = selectedDay ? getDogCountForDay(selectedDay, localBookings) : 0
   const selectedDayBlocked = selectedDay ? isBlocked(selectedDay) : null
+  const selectedDayMeetGreets = selectedDay ? getMeetGreetsForDay(selectedDay, meetGreets) : []
 
   function handleDayClick(day: Date) {
     if (selectedDay && sameDay(day, selectedDay)) setSelectedDay(null)
@@ -427,6 +434,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
               const isWarning = dogCount >= 5 && dogCount < 8
               const hasMatch = hasSearch && dayBookings.some(b => matchedIds.has(b.id))
               const blocked = isBlocked(day)
+              const dayMeetGreets = getMeetGreetsForDay(day, meetGreets)
 
               return (
                 <div key={i}
@@ -446,7 +454,12 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                     </div>
                     {blocked
                       ? <span className="text-xs text-gray-400">🚫</span>
-                      : <DogCapacityBadge count={dogCount} />
+                      : <div className="flex items-center gap-0.5">
+                          {dayMeetGreets.length > 0 && (
+                            <span className="text-xs bg-violet-100 text-violet-700 rounded px-0.5" title={`${dayMeetGreets.length} meet & greet${dayMeetGreets.length !== 1 ? 's' : ''}`}>🤝</span>
+                          )}
+                          <DogCapacityBadge count={dogCount} />
+                        </div>
                     }
                   </div>
                   {blocked ? (
@@ -510,6 +523,22 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                   <button onClick={() => setSelectedDay(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">✕</button>
                 </div>
               </div>
+              {/* Meet & Greets scheduled this day */}
+              {selectedDayMeetGreets.length > 0 && (
+                <div className="px-3 md:px-4 py-2 bg-violet-50 border-b border-violet-100 space-y-1">
+                  {selectedDayMeetGreets.map(mg => (
+                    <div key={mg.id}
+                      onClick={() => router.push(`/meet-greets/${mg.id}`)}
+                      className="flex items-center gap-2 text-xs cursor-pointer hover:underline">
+                      <span>🤝</span>
+                      <span className="font-medium text-violet-800">{mg.dog_names || mg.customer_name}</span>
+                      <span className="text-violet-500">{mg.customer_name}</span>
+                      {mg.scheduled_time && <span className="text-violet-400 ml-auto">{formatTime(mg.scheduled_time)}</span>}
+                      {mg.status === 'completed' && <span className="badge badge-green text-xs">done</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Block reason input when blocking */}
               {!selectedDayBlocked && (
                 <div className="px-3 md:px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">

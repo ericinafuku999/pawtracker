@@ -54,6 +54,22 @@ export interface Expense {
   updated_at: string
 }
 
+export type MeetGreetStatus = 'scheduled' | 'completed' | 'cancelled'
+
+export interface MeetGreet {
+  id: string
+  user_id: string
+  customer_name: string
+  dog_names: string
+  scheduled_date: string
+  scheduled_time: string | null
+  reminder_sent: boolean
+  status: MeetGreetStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
 export const EXPENSE_CATEGORIES = [
   'Treats', 'Dog food', 'Diapers', 'Toys', 'Cleaning materials',
   'Poop bags', 'Leashes/collars', 'Crates/gates/beds', 'Repairs/maintenance',
