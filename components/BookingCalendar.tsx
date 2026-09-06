@@ -351,24 +351,24 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col gap-2 mb-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-1 md:gap-2">
           <button onClick={prev} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-sm">‹</button>
           <button onClick={goToday} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-xs">Today</button>
           <button onClick={next} className="btn py-1.5 px-2.5 md:py-1 md:px-2 text-sm">›</button>
-          <span className="font-medium text-xs md:text-sm ml-1">{view === 'month' ? monthName : weekRange}</span>
+          <span className="font-medium text-xs md:text-sm ml-1 truncate">{view === 'month' ? monthName : weekRange}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 md:justify-end">
           <button
             onClick={() => setShowBlockRange(!showBlockRange)}
-            className="btn text-xs py-1 px-2 bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200">
-            🚫 Block Range
+            className="btn text-xs py-1.5 px-2 md:py-1 bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200 whitespace-nowrap flex-shrink-0">
+            🚫 <span className="hidden sm:inline">Block Range</span><span className="sm:hidden">Block</span>
           </button>
-          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
+          <div className="hidden md:flex items-center gap-3 text-xs text-gray-500 flex-shrink-0">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span> 5+</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block"></span> 8+</span>
           </div>
-          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg flex-shrink-0">
             <button onClick={() => { setView('month'); setSelectedDay(null) }} className={`px-2 md:px-3 py-1 rounded-md text-xs transition-colors ${view === 'month' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Month</button>
             <button onClick={() => { setView('week'); setSelectedDay(null) }} className={`px-2 md:px-3 py-1 rounded-md text-xs transition-colors ${view === 'week' ? 'bg-white font-medium shadow-sm' : 'text-gray-500'}`}>Week</button>
           </div>
