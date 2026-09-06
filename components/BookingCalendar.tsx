@@ -20,6 +20,7 @@ function getColor(index: number) { return COLORS[index % COLORS.length] }
 function parseD(s: string) { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d) }
 function sameDay(a: Date, b: Date) { return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate() }
 function isBetween(date: Date, start: Date, end: Date) { return date >= start && date <= end }
+function dateToStr(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
 function getDogCountForDay(date: Date, bookings: Booking[]) {
   return bookings
@@ -53,6 +54,12 @@ interface DogProfile {
   photo_url: string | null
 }
 
+interface BlockedDay {
+  id: string
+  blocked_date: string
+  reason: string | null
+}
+
 interface Props {
   bookings: Booking[]
   compact?: boolean
@@ -69,6 +76,12 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const [tipBookingId, setTipBookingId] = useState<string | null>(null)
   const [tipAmount, setTipAmount] = useState('')
   const [tipSaving, setTipSaving] = useState(false)
+  const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
+  const [blockReason, setBlockReason] = useState('')
+  const [showBlockRange, setShowBlockRange] = useState(false)
+  const [blockRangeStart, setBlockRangeStart] = useState('')
+  const [blockRangeEnd, setBlockRangeEnd] = useState('')
+  const [blockingRange, setBlockingRange] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
@@ -83,6 +96,76 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
     return () => clearInterval(t)
   }, [])
   const now = new Date()
+
+  useEffect(() => {
+    loadBlockedDays()
+  }, [])
+
+  async function loadBlockedDays() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    const { data } = await supabase
+      .from('blocked_days')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('blocked_date')
+    setBlockedDays(data || [])
+  }
+
+  function isBlocked(date: Date): BlockedDay | null {
+    const str = dateToStr(date)
+    return blockedDays.find(b => b.blocked_date === str) || null
+  }
+
+  async function blockDay(date: Date) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('blocked_days').insert({
+      user_id: user.id,
+      blocked_date: dateToStr(date),
+      reason: blockReason || null,
+      created_at: new Date().toISOString(),
+    })
+    setBlockReason('')
+    loadBlockedDays()
+  }
+
+  async function unblockDay(id: string) {
+    await supabase.from('blocked_days').delete().eq('id', id)
+    loadBlockedDays()
+  }
+
+  async function blockRange() {
+    if (!blockRangeStart || !blockRangeEnd) return
+    setBlockingRange(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setBlockingRange(false); return }
+    const start = parseD(blockRangeStart)
+    const end = parseD(blockRangeEnd)
+    const cur = new Date(start)
+    const toInsert = []
+    while (cur <= end) {
+      const str = dateToStr(cur)
+      if (!blockedDays.find(b => b.blocked_date === str)) {
+        toInsert.push({
+          user_id: user.id,
+          blocked_date: str,
+          reason: blockReason || null,
+          created_at: new Date().toISOString(),
+        })
+      }
+      cur.setDate(cur.getDate() + 1)
+    }
+    if (toInsert.length > 0) {
+      await supabase.from('blocked_days').insert(toInsert)
+    }
+    setBlockRangeStart('')
+    setBlockRangeEnd('')
+    setBlockReason('')
+    setShowBlockRange(false)
+    setBlockingRange(false)
+    loadBlockedDays()
+  }
 
   const activeBookings = localBookings.filter(b => b.status !== 'cancelled')
   const hasSearch = searchQuery.trim().length > 0
@@ -225,6 +308,7 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
   const selectedRowIndex = selectedDay ? rows.findIndex(row => row.some(d => sameDay(d, selectedDay))) : -1
   const selectedDayBookings = selectedDay ? getBookingsForDay(selectedDay) : []
   const selectedDogCount = selectedDay ? getDogCountForDay(selectedDay, localBookings) : 0
+  const selectedDayBlocked = selectedDay ? isBlocked(selectedDay) : null
 
   function handleDayClick(day: Date) {
     if (selectedDay && sameDay(day, selectedDay)) setSelectedDay(null)
@@ -275,6 +359,11 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
           <span className="font-medium text-xs md:text-sm ml-1">{view === 'month' ? monthName : weekRange}</span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBlockRange(!showBlockRange)}
+            className="btn text-xs py-1 px-2 bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200">
+            🚫 Block Range
+          </button>
           <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-amber-400 inline-block"></span> 5+</span>
             <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block"></span> 8+</span>
@@ -285,6 +374,36 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
           </div>
         </div>
       </div>
+
+      {/* Block range panel */}
+      {showBlockRange && (
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-3">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-medium text-sm text-gray-700">🚫 Block a Date Range</div>
+            <button onClick={() => setShowBlockRange(false)} className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+            <div>
+              <label className="label">Start Date</label>
+              <input className="input text-sm" type="date" value={blockRangeStart} onChange={e => setBlockRangeStart(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">End Date</label>
+              <input className="input text-sm" type="date" value={blockRangeEnd} onChange={e => setBlockRangeEnd(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Reason (optional)</label>
+              <input className="input text-sm" placeholder="e.g. Vacation" value={blockReason} onChange={e => setBlockReason(e.target.value)} />
+            </div>
+          </div>
+          <button
+            onClick={blockRange}
+            disabled={!blockRangeStart || !blockRangeEnd || blockingRange}
+            className="btn btn-primary text-xs py-2 px-4">
+            {blockingRange ? 'Blocking…' : '🚫 Block These Days'}
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-7 mb-1">
         {['S','M','T','W','T','F','S'].map((d, i) => (
@@ -307,42 +426,53 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
               const isOverbooked = dogCount >= 8
               const isWarning = dogCount >= 5 && dogCount < 8
               const hasMatch = hasSearch && dayBookings.some(b => matchedIds.has(b.id))
+              const blocked = isBlocked(day)
 
               return (
                 <div key={i}
                   onClick={() => handleDayClick(day)}
                   className={`min-h-[60px] md:min-h-[90px] border p-0.5 md:p-1 cursor-pointer transition-all
-                    ${isSelected ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
+                    ${blocked ? 'bg-gray-100 border-gray-300' :
+                      isSelected ? 'border-emerald-400 bg-emerald-50 ring-1 ring-emerald-300' :
                       hasMatch ? 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-200' :
                       isOverbooked ? 'border-red-200 bg-red-50' :
                       isWarning ? 'border-amber-200 bg-amber-50' :
                       isCurrentMonth ? 'border-gray-100 bg-white hover:bg-gray-50' : 'border-gray-100 bg-gray-50'}
-                    ${hasSearch && !hasMatch ? 'opacity-40' : ''}`}>
+                    ${hasSearch && !hasMatch && !blocked ? 'opacity-40' : ''}`}>
                   <div className="flex items-center justify-between mb-0.5">
                     <div className={`text-xs w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full font-medium
-                      ${isToday ? 'bg-emerald-500 text-white' : isCurrentMonth ? 'text-gray-700' : 'text-gray-300'}`}>
+                      ${isToday ? 'bg-emerald-500 text-white' : isCurrentMonth ? blocked ? 'text-gray-400' : 'text-gray-700' : 'text-gray-300'}`}>
                       {day.getDate()}
                     </div>
-                    <DogCapacityBadge count={dogCount} />
+                    {blocked
+                      ? <span className="text-xs text-gray-400">🚫</span>
+                      : <DogCapacityBadge count={dogCount} />
+                    }
                   </div>
-                  <div className="space-y-0.5">
-                    {dayBookings.slice(0, 1).map(b => {
-                      const isMatch = hasSearch && matchedIds.has(b.id)
-                      const isNotMatch = hasSearch && !matchedIds.has(b.id)
-                      return (
-                        <div key={b.id} className={`text-xs px-0.5 md:px-1 py-0.5 rounded border truncate transition-all
-                          ${isMatch ? 'ring-1 ring-emerald-400 font-bold ' + colorMap[b.id] :
-                            isNotMatch ? 'opacity-30 ' + colorMap[b.id] :
-                            colorMap[b.id]}`}>
-                          <span className="hidden md:inline">{isMatch && '★ '}{displayName(b)}</span>
-                          <span className="md:hidden">{displayName(b).split(' ')[0]}</span>
-                        </div>
-                      )
-                    })}
-                    {dayBookings.length > 1 && (
-                      <div className="text-xs text-gray-400 pl-0.5">+{dayBookings.length - 1}</div>
-                    )}
-                  </div>
+                  {blocked ? (
+                    <div className="text-xs text-gray-400 truncate px-0.5">
+                      {blocked.reason || 'Blocked'}
+                    </div>
+                  ) : (
+                    <div className="space-y-0.5">
+                      {dayBookings.slice(0, 1).map(b => {
+                        const isMatch = hasSearch && matchedIds.has(b.id)
+                        const isNotMatch = hasSearch && !matchedIds.has(b.id)
+                        return (
+                          <div key={b.id} className={`text-xs px-0.5 md:px-1 py-0.5 rounded border truncate transition-all
+                            ${isMatch ? 'ring-1 ring-emerald-400 font-bold ' + colorMap[b.id] :
+                              isNotMatch ? 'opacity-30 ' + colorMap[b.id] :
+                              colorMap[b.id]}`}>
+                            <span className="hidden md:inline">{isMatch && '★ '}{displayName(b)}</span>
+                            <span className="md:hidden">{displayName(b).split(' ')[0]}</span>
+                          </div>
+                        )
+                      })}
+                      {dayBookings.length > 1 && (
+                        <div className="text-xs text-gray-400 pl-0.5">+{dayBookings.length - 1}</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -355,15 +485,56 @@ export default function BookingCalendar({ bookings, compact = false, onRefresh, 
                   <span className="font-semibold text-xs md:text-sm">
                     {selectedDay.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
-                  <span className={`badge text-xs ${selectedDogCount >= 8 ? 'bg-red-100 text-red-700' : selectedDogCount >= 5 ? 'bg-amber-100 text-amber-700' : 'badge-green'}`}>
-                    {selectedDogCount} 🐾
-                  </span>
+                  {selectedDayBlocked ? (
+                    <span className="badge bg-gray-200 text-gray-600 text-xs">🚫 Blocked</span>
+                  ) : (
+                    <span className={`badge text-xs ${selectedDogCount >= 8 ? 'bg-red-100 text-red-700' : selectedDogCount >= 5 ? 'bg-amber-100 text-amber-700' : 'badge-green'}`}>
+                      {selectedDogCount} 🐾
+                    </span>
+                  )}
                 </div>
-                <button onClick={() => setSelectedDay(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">✕</button>
+                <div className="flex items-center gap-2">
+                  {selectedDayBlocked ? (
+                    <button
+                      onClick={() => unblockDay(selectedDayBlocked.id)}
+                      className="btn text-xs py-1 px-2 bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">
+                      ✓ Unblock Day
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => blockDay(selectedDay!)}
+                      className="btn text-xs py-1 px-2 bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">
+                      🚫 Block Day
+                    </button>
+                  )}
+                  <button onClick={() => setSelectedDay(null)} className="text-gray-400 hover:text-gray-600 text-lg leading-none px-1">✕</button>
+                </div>
               </div>
-              {selectedDayBookings.length === 0 ? (
+              {/* Block reason input when blocking */}
+              {!selectedDayBlocked && (
+                <div className="px-3 md:px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+                  <input
+                    className="input text-xs flex-1"
+                    placeholder="Block reason (optional) — e.g. Vacation, Holiday…"
+                    value={blockReason}
+                    onChange={e => setBlockReason(e.target.value)}
+                  />
+                </div>
+              )}
+              {selectedDayBlocked && (
+                <div className="px-4 py-4 text-center">
+                  <div className="text-2xl mb-1">🚫</div>
+                  <div className="font-medium text-gray-700">This day is blocked</div>
+                  {selectedDayBlocked.reason && (
+                    <div className="text-sm text-gray-500 mt-1">{selectedDayBlocked.reason}</div>
+                  )}
+                  <div className="text-xs text-gray-400 mt-2">Click "Unblock Day" above to make it available again</div>
+                </div>
+              )}
+              {!selectedDayBlocked && selectedDayBookings.length === 0 && (
                 <div className="px-4 py-5 text-center text-gray-400 text-sm">No bookings on this day</div>
-              ) : (
+              )}
+              {!selectedDayBlocked && selectedDayBookings.length > 0 && (
                 <div className="overflow-y-auto" style={{ maxHeight: '380px' }}>
                   {selectedDayBookings.map((b) => {
                     const isMatch = hasSearch && matchedIds.has(b.id)

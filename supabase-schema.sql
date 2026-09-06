@@ -59,11 +59,23 @@ create table if not exists push_subscriptions (
   created_at timestamptz default now()
 );
 
+-- Calendar days marked unavailable (e.g. vacation), one row per blocked date
+create table if not exists blocked_days (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  blocked_date date not null,
+  reason text,
+  created_at timestamptz default now(),
+  unique (user_id, blocked_date)
+);
+
 -- Row Level Security: users can only see their own data
 alter table bookings enable row level security;
 alter table expenses enable row level security;
 alter table push_subscriptions enable row level security;
+alter table blocked_days enable row level security;
 
 create policy "Users see own bookings" on bookings for all using (auth.uid() = user_id);
 create policy "Users see own expenses" on expenses for all using (auth.uid() = user_id);
 create policy "Users manage own push subscriptions" on push_subscriptions for all using (auth.uid() = user_id);
+create policy "Users manage own blocked days" on blocked_days for all using (auth.uid() = user_id);
