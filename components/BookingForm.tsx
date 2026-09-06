@@ -15,6 +15,12 @@ interface DogProfile {
   photo_url: string | null
 }
 
+interface BlockedDay {
+  id: string
+  blocked_date: string
+  reason: string | null
+}
+
 export default function BookingForm({ bookingId }: { bookingId?: string }) {
   const isEdit = !!bookingId
   const [form, setForm] = useState({
@@ -32,6 +38,8 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
   const [allDogs, setAllDogs] = useState<DogProfile[]>([])
   const [showDropdown, setShowDropdown] = useState(false)
   const [selectedDog, setSelectedDog] = useState<DogProfile | null>(null)
+  const [blockedDays, setBlockedDays] = useState<BlockedDay[]>([])
+  const [blockedWarning, setBlockedWarning] = useState<string[]>([])
   const searchRef = useRef<HTMLDivElement>(null)
   const originalTimes = useRef<{ arrival_time: string | null; departure_time: string | null }>({ arrival_time: null, departure_time: null })
   const router = useRouter()
@@ -44,8 +52,32 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       supabase.from('dogs').select('*').eq('user_id', user.id).order('dog_name').then(({ data }) => {
         setAllDogs(data || [])
       })
+      supabase.from('blocked_days').select('*').eq('user_id', user.id).then(({ data }) => {
+        setBlockedDays(data || [])
+      })
     })
   }, [])
+
+  // Warn if the selected date range overlaps any days marked unavailable.
+  useEffect(() => {
+    if (!form.arrival_date || !form.departure_date || blockedDays.length === 0) {
+      setBlockedWarning([])
+      return
+    }
+    const [ay, am, ad] = form.arrival_date.split('-').map(Number)
+    const [dy, dm, dd] = form.departure_date.split('-').map(Number)
+    const start = new Date(ay, am - 1, ad)
+    const end = new Date(dy, dm - 1, dd)
+    const cur = new Date(start)
+    const overlapping: string[] = []
+    while (cur <= end) {
+      const str = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`
+      const blocked = blockedDays.find(b => b.blocked_date === str)
+      if (blocked) overlapping.push(str + (blocked.reason ? ` (${blocked.reason})` : ''))
+      cur.setDate(cur.getDate() + 1)
+    }
+    setBlockedWarning(overlapping)
+  }, [form.arrival_date, form.departure_date, blockedDays])
 
   useEffect(() => {
     const dogId = searchParams?.get('dogId')
@@ -219,6 +251,17 @@ export default function BookingForm({ bookingId }: { bookingId?: string }) {
       {saved && (
         <div className="mb-4 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-700 font-medium">
           ✓ Booking saved! Fill in the form below to add another.
+        </div>
+      )}
+
+      {/* Blocked days warning */}
+      {blockedWarning.length > 0 && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+          <div className="font-semibold text-sm text-red-700 mb-1">⚠️ Warning — Blocked Days in This Range</div>
+          <div className="text-xs text-red-600 space-y-0.5">
+            {blockedWarning.map((d, i) => <div key={i}>🚫 {d}</div>)}
+          </div>
+          <div className="text-xs text-red-500 mt-2">You can still save this booking, but these days are marked as unavailable.</div>
         </div>
       )}
 
